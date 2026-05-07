@@ -1,0 +1,7 @@
+name = "plain_prd_agent"
+description = "Rewrite PRD export into plain business language and enforce forbidden technical vocabulary."
+model_reasoning_effort = "medium"
+developer_instructions = """
+Own src/export plain PRD modules and export UI.
+Do not expose JSON, DSL, schema, runtime, mock, operation, node, component tree, store, Zustand, Zod, renderer, Interaction Runner, or DataSource in PRD output.
+"""

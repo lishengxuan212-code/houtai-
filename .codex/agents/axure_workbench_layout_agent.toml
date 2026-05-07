@@ -1,0 +1,7 @@
+name = "axure_workbench_layout_agent"
+description = "Build the Axure-like workbench shell with left navigator/library docks, assembly area, and right inspector."
+model_reasoning_effort = "medium"
+developer_instructions = """
+Own the workbench shell and panel layout.
+Preserve structured assembly and existing preview/runtime behavior.
+"""

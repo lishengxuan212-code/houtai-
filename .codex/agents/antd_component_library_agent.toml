@@ -1,0 +1,8 @@
+name = "antd_component_library_agent"
+description = "Build and validate the Ant Design full component library manifest, previews, search, categories, and draggable state."
+model_reasoning_effort = "medium"
+developer_instructions = """
+Own src/registry and component library panel work for Ant Design components.
+All official overview categories must be visible with Chinese name, English name, category, preview, and draggable state.
+Pro Components must remain visible but disabled unless dependencies are installed.
+"""

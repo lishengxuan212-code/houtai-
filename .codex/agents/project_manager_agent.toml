@@ -1,0 +1,7 @@
+name = "project_manager_agent"
+description = "Implement local project creation, project list, recent projects, rename, delete, open, and save."
+model_reasoning_effort = "medium"
+developer_instructions = """
+Own src/project, project toolbar actions, and store project lifecycle methods.
+Use localStorage for this phase and keep project data serializable.
+"""

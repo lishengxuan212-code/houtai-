@@ -1,0 +1,335 @@
+product_target: Canvas-first Backoffice Prototype Editor
+
+phases:
+  - id: V1.1-S1-product-workbench-foundation
+    title: Product Workbench Foundation
+    priority: 100
+    status: completed
+    goal: >
+      Build the initial admin prototype workbench with Ant Design component
+      library, project creation, template saving, and plain-language PRD export.
+    required_gates:
+      - ux_product
+      - qa
+      - architecture
+    tasks:
+      - ant-design-full-component-library
+      - axure-like-workbench-layout
+      - new-project-flow
+      - template-save-and-reuse
+      - plain-language-prd-export
+
+  - id: V1.1-S2-component-schema-visual-editing-procomponents
+    title: Component Schema, Visual Editing and ProComponents
+    priority: 90
+    status: completed
+    goal: >
+      Build a reusable component property editing layer, allow editing component
+      library defaults and component presets, support visual instance editing,
+      and integrate ProComponents heavy components.
+    required_gates:
+      - ux_product
+      - qa
+      - architecture
+    tasks:
+      - component-definition-schema
+      - prop-schema-registry
+      - generated-inspector
+      - component-library-default-props-editor
+      - component-preset-system
+      - procomponents-integration
+      - protable-editor
+      - proform-editor
+      - prolayout-template-support
+      - inline-edit-basic-content
+      - template-preset-sync
+
+  - id: V1.1-S2.1-component-content-editing-and-axure-like-operations
+    title: Component Content Editing and Axure-like Operations
+    priority: 88
+    status: completed
+    goal: >
+      Make internal component content and display data editable without raw
+      project editing, and strengthen outline, context, copy/paste, rename,
+      lock, hide, and PageContainer region operations.
+    required_gates:
+      - ux_product
+      - qa
+      - architecture
+    tasks:
+      - component-content-schema
+      - collection-editors
+      - dropdown-menu-editor
+      - table-row-data-editor
+      - procomponents-content-data-schema
+      - page-container-slots
+      - axure-like-outline-operations
+
+  - id: V1.1-S2.2-antd-api-schema-and-prop-editor-completion
+    title: Ant Design API Schema and Prop Editor Completion
+    priority: 87
+    status: carryover
+    goal: >
+      Establish official API parameter schemas for Ant Design and ProComponents
+      so component parameters, variants, complex objects, events, preview, and
+      PRD output share one visual editing contract.
+    required_gates:
+      - api_coverage
+      - ux_product
+      - qa
+      - architecture
+    tasks:
+      - component-api-schema
+      - floatbutton-api-contract
+      - api-to-prop-schema-mapping
+      - component-variant-registry
+      - complex-prop-editors
+      - event-api-to-interaction
+      - api-coverage-report
+    note: >
+      Continue API coverage incrementally inside S2.3 and later library work.
+      Do not let API completion block the canvas pivot.
+
+  - id: V1.1-S2.3-library-completion-and-canvas-pivot
+    title: Library Completion and Canvas Pivot
+    priority: 95
+    status: completed
+    goal: >
+      Pivot the operation model to an Axure-style infinite canvas for
+      backoffice prototypes while completing prototype widgets and component
+      content/data editing.
+    required_gates:
+      - ux_product
+      - qa
+      - architecture
+    workstreams:
+      - id: prototype-widget-library
+        title: Prototype Widget Library
+        tasks:
+          - text-heading-paragraph-link-widgets
+          - annotation-sticky-note-widgets
+          - shape-line-arrow-image-icon-widgets
+          - placeholder-hot-zone-status-amount-time-widgets
+          - text-style-visual-editor
+          - canvas-double-click-text-edit
+      - id: component-content-data
+        title: Component Content and Data Editing
+        tasks:
+          - dropdown-menu-item-editor
+          - select-radio-checkbox-option-editors
+          - cascader-treeselect-menu-tree-editors
+          - tabs-steps-collapse-breadcrumb-editors
+          - table-protable-row-column-action-editors
+          - editable-protable-editing-rule-editor
+          - form-proform-field-default-validation-editors
+          - modal-drawer-title-content-footer-editors
+      - id: canvas-engine
+        title: Infinite Canvas Engine
+        tasks:
+          - page-frame-model
+          - canvas-node-placement-model
+          - drag-resize-box-select-multiselect
+          - zoom-pan-grid-snap-guides-rulers
+          - lock-hide-z-order
+          - migrate-structured-pages-to-canvas-layout
+      - id: axure-operations
+        title: Axure-style Operations
+        tasks:
+          - click-select-and-outline-sync
+          - context-menu-copy-paste-delete-rename
+          - group-ungroup-lock-hide-z-order-template
+          - keyboard-copy-paste-delete-undo-redo
+          - align-and-distribute
+          - clone-new-id-integrity
+      - id: canvas-preview
+        title: Canvas Preview
+        tasks:
+          - active-page-frame-preview
+          - absolute-layout-rendering
+          - preview-edit-mode-separation
+          - dropdown-table-form-modal-drawer-preview-sync
+      - id: semantic-grouping-prd
+        title: Semantic Grouping and PRD
+        tasks:
+          - group-selection-as-business-module
+          - module-naming-and-outline
+          - automatic-module-suggestions
+          - prd-page-frame-module-export
+          - prd-coordinate-and-technical-term-exclusion
+
+  - id: V1.1-S3-performance-and-canvas-interaction-hardening
+    title: Performance and Canvas Interaction Hardening
+    priority: 98
+    status: completed
+    goal: >
+      Resolve canvas, component library, inspector, preview, persistence, and
+      history latency so frequent editor operations feel close to Axure.
+    required_gates:
+      - ux_latency
+      - qa_performance
+      - architecture
+    workstreams:
+      - id: performance-baseline
+        title: Performance Baseline and Budgets
+        tasks:
+          - performance-debug-panel
+          - canvas-node-count-render-count-metrics
+          - drag-select-inspector-library-preview-save-timing
+          - performance-baseline-budget-decision-docs
+      - id: canvas-hot-path
+        title: Canvas Hot Path Hardening
+        tasks:
+          - drag-temporary-state-and-raf-transform
+          - pointerup-single-move-operation
+          - throttled-box-select-and-multiselect
+          - zoom-pan-layout-reflow-reduction
+      - id: store-subscriptions
+        title: Store Subscription Boundaries
+        tasks:
+          - split-hot-and-cold-editor-state
+          - node-level-selectors-and-memoization
+          - inspector-outline-library-isolation
+          - render-count-test-or-debug-tooling
+      - id: canvas-virtualization
+        title: Canvas Viewport Culling
+        tasks:
+          - viewport-bounds-intersection-rendering
+          - preserve-selected-dragging-editing-nodes
+          - three-hundred-five-hundred-thousand-node-scenarios
+      - id: heavy-component-rendering
+        title: Heavy Component Design Rendering
+        tasks:
+          - design-renderer-runtime-renderer-boundary
+          - light-protable-editableprotable-form-layout-rendering
+          - preview-uses-runtime-renderer
+      - id: library-performance
+        title: Component Library Performance
+        tasks:
+          - lightweight-library-card-previews
+          - debounced-cached-search
+          - virtualized-or-lazy-category-rendering
+      - id: persistence-history
+        title: Persistence and History Performance
+        tasks:
+          - debounced-idle-autosave
+          - operation-based-history-entries
+          - compressed-batch-copy-drag-edit-history
+      - id: async-analysis-preview
+        title: Async Analysis and Preview Performance
+        tasks:
+          - prd-and-ai-only-on-demand-or-idle
+          - dependency-analysis-incremental-updates
+          - current-page-frame-preview-only
+          - preview-heavy-component-lazy-loading
+
+  - id: V1.1-S4-canvas-actions-layer-template-workflow
+    title: Canvas Actions, Layering, Template Workflow and Interaction Behaviors
+    priority: 96
+    status: active
+    goal: >
+      Complete Axure-style canvas operation logic, layer management, template
+      save/reuse, recent assets, and runtime show/hide/enable/disable
+      interactions so users can continuously build and preview backoffice
+      prototypes.
+    required_gates:
+      - ux_workflow
+      - qa
+      - architecture
+    workstreams:
+      - id: canvas-pan-shortcuts
+        title: Canvas Pan and View Shortcuts
+        tasks:
+          - space-hold-pan
+          - middle-mouse-pan
+          - ctrl-command-wheel-zoom
+          - home-fit-view-current-frame
+          - input-focus-shortcut-suppression
+      - id: interaction-actions
+        title: Runtime Interaction Actions
+        tasks:
+          - show-hide-toggle-node
+          - enable-disable-toggle-node
+          - open-close-modal-drawer
+          - navigate-message-set-prop-form-refresh-tab-scroll
+          - ordered-multiple-actions
+      - id: runtime-visibility
+        title: Runtime Visibility and Interactivity State
+        tasks:
+          - editor-visible-runtime-initial-visible-separation
+          - runtime-initial-disabled
+          - preview-state-reset
+          - interaction-only-runtime-state
+      - id: template-workflow
+        title: Template Asset Workflow
+        tasks:
+          - page-frame-block-group-component-template-save
+          - template-persistence
+          - template-insert-id-remap
+          - template-rename-delete-update
+      - id: recent-library
+        title: Recent and Favorite Assets
+        tasks:
+          - recent-library-tab
+          - record-component-template-preset-usage
+          - dedupe-use-count-and-cap-fifty
+          - clear-and-favorite-recent-items
+      - id: layer-manager
+        title: Layer and Z-index Management
+        tasks:
+          - layer-panel-current-frame
+          - bring-front-send-back-forward-backward
+          - drag-reorder-layer-stack
+          - lock-unlock-hide-show-rename
+      - id: selection-group-shortcuts
+        title: Selection, Grouping, Context Menu and Shortcuts
+        tasks:
+          - shift-click-and-box-select
+          - esc-clear-selection
+          - group-ungroup-shortcuts
+          - context-menu-completion
+          - undo-redo-core-operations
+      - id: inspector-prd-sync
+        title: Inspector and PRD Sync
+        tasks:
+          - inspector-position-size-zindex-state-fields
+          - component-name-prd-priority
+          - group-template-interaction-prd-language
+
+  - id: V1.1-S5-field-dependency-and-data-linkage
+    title: Field Dependency and Data Linkage
+    priority: 60
+    status: pending
+    goal: >
+      Support field dependency analysis, display-data linkage, search-to-table
+      refresh behavior, and safe field rename synchronization.
+    required_gates:
+      - ux_product
+      - qa
+      - architecture
+
+  - id: V1.1-S6-ai-backoffice-prototype-optimization
+    title: AI Backoffice Prototype Optimization
+    priority: 50
+    status: pending
+    goal: >
+      Use rule-based and future API-backed assistant suggestions to detect
+      missing interactions, incomplete fields, weak business modules, and PRD
+      gaps in backoffice prototypes.
+    required_gates:
+      - ux_product
+      - qa
+      - architecture
+
+  - id: V1.1-S7-product-hardening
+    title: Product Hardening
+    priority: 40
+    status: pending
+    goal: >
+      Improve onboarding, errors, accessibility, performance, browser behavior,
+      visual polish, and final beta quality.
+    required_gates:
+      - ux_product
+      - qa
+      - architecture
+      - accessibility
+      - performance

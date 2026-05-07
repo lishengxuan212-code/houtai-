@@ -1,0 +1,8 @@
+{
+  "activePhase": "V1.1-S4-canvas-actions-layer-template-workflow",
+  "phaseName": "Canvas Actions, Layering, Template Workflow and Interaction Behaviors",
+  "status": "active",
+  "updatedAt": "2026-05-07T18:05:00.000+08:00",
+  "productTarget": "Canvas-first Backoffice Prototype Editor",
+  "requiredGates": ["ux_workflow", "qa", "architecture"]
+}
