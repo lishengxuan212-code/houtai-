@@ -1,6 +1,7 @@
 import { Button, Empty, Space, Tag } from 'antd';
 import { EyeOff, Lock, Trash2, Unlock } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type WheelEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type WheelEvent } from 'react';
+import { getNextFrameZIndex, sortNodesByZIndex } from '../domain/canvas';
 import { visibleCanvasNodeIds } from '../domain/canvasViewport';
 import type { ComponentNode, NodeCanvasConfig, Page, PageFrame } from '../domain/types';
 import { componentLabel } from '../registry/componentLabels';
@@ -10,14 +11,30 @@ import { useCanvasInteractionStore, useCanvasViewportStore } from '../store/edit
 import { useProjectStore } from '../store/projectStore';
 import { InlineTextEditor, patchArrayItemLabel, patchScalarProp } from './inlineEdit';
 import { incrementMetric, measureMetric } from './performance/performanceMetrics';
+import { SaveTemplateModal } from './templates/SaveTemplateModal';
 
 type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
+type SelectionBox = { startX: number; startY: number; x: number; y: number; width: number; height: number };
 
 const DEFAULT_FRAME_WIDTH = 1200;
 const DEFAULT_FRAME_HEIGHT = 760;
 const CANVAS_PADDING = 160;
 const MIN_NODE_WIDTH = 80;
 const MIN_NODE_HEIGHT = 36;
+const EDITABLE_SHORTCUT_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  'button',
+  '[contenteditable="true"]',
+  '[role="textbox"]',
+  '.inline-edit-text',
+  '.inline-edit-input',
+  '.ant-input',
+  '.ant-input-number',
+  '.ant-select',
+  '.ant-table',
+].join(',');
 
 const DEFAULT_NODE_SIZES: Record<string, { width: number; height: number }> = {
   Button: { width: 180, height: 48 },
@@ -76,15 +93,17 @@ function buildParentMap(page: Page) {
   return parents;
 }
 
-function nextZIndex(page: Page, frameId: string) {
-  return (
-    Math.max(
-      0,
-      ...Object.values(page.nodes)
-        .filter((node) => node.canvas?.parentFrameId === frameId)
-        .map((node) => node.canvas?.zIndex ?? 0),
-    ) + 1
-  );
+function isEditableShortcutTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && Boolean(target.closest(EDITABLE_SHORTCUT_SELECTOR));
+}
+
+function readScrollBox(element: HTMLElement) {
+  return {
+    scrollLeft: element.scrollLeft,
+    scrollTop: element.scrollTop,
+    width: element.clientWidth,
+    height: element.clientHeight,
+  };
 }
 
 function useRendererContext(page: Page | undefined, project: ReturnType<typeof useProjectStore.getState>['project']): RendererContext {
@@ -138,11 +157,9 @@ function NestedRenderNode({
   activeFrameId: string;
   context: RendererContext;
 }) {
-  const children = node.children?.map((childId) => {
-    const child = page.nodes[childId];
-    if (!child || child.canvas?.hidden) return null;
-    return <NestedRenderNode key={child.id} page={page} node={child} activeFrameId={activeFrameId} context={context} />;
-  });
+  const children = sortNodesByZIndex(node.children?.map((childId) => page.nodes[childId]).filter((child): child is ComponentNode => child !== undefined && !child.canvas?.hidden) ?? []).map((child) => (
+    <NestedRenderNode key={child.id} page={page} node={child} activeFrameId={activeFrameId} context={context} />
+  ));
 
   return (
     <RenderNode node={node} context={context}>
@@ -168,15 +185,17 @@ function CanvasNodeFrame({
 }) {
   const nodeRef = useRef<HTMLDivElement>(null);
   incrementMetric('nodeRender');
-  const selectedNodeId = useProjectStore((state) => state.selectedNodeId);
+  const selectedNodeIds = useProjectStore((state) => state.selectedNodeIds);
   const apply = useProjectStore((state) => state.apply);
   const selectNode = useProjectStore((state) => state.selectNode);
+  const selectNodes = useProjectStore((state) => state.selectNodes);
   const deleteSelectedNode = useProjectStore((state) => state.deleteSelectedNode);
   const beginInteraction = useCanvasInteractionStore((state) => state.beginInteraction);
   const updateInteraction = useCanvasInteractionStore((state) => state.updateInteraction);
   const endInteraction = useCanvasInteractionStore((state) => state.endInteraction);
   const activeInteraction = useCanvasInteractionStore((state) => (state.active?.nodeId === node.id ? state.active : undefined));
-  const selected = selectedNodeId === node.id;
+  const spacePanActive = useCanvasViewportStore((state) => state.spacePanActive);
+  const selected = selectedNodeIds.includes(node.id);
   const locked = Boolean(canvas.locked);
   const visualCanvas = activeInteraction?.previewCanvas;
 
@@ -185,10 +204,12 @@ function CanvasNodeFrame({
   };
 
   const startDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (spacePanActive) return;
+    if (event.shiftKey) return;
     if (event.button !== 0 || locked || (event.target as HTMLElement).closest('.canvas-node-toolbar, .resize-handle, .inline-edit-text, .inline-edit-input')) return;
     event.preventDefault();
     event.stopPropagation();
-    selectNode(node.id);
+    if (!selectedNodeIds.includes(node.id)) selectNode(node.id);
 
     const startX = event.clientX;
     const startY = event.clientY;
@@ -234,6 +255,7 @@ function CanvasNodeFrame({
   };
 
   const startResize = (corner: ResizeCorner) => (event: ReactMouseEvent<HTMLSpanElement>) => {
+    if (spacePanActive) return;
     if (locked) return;
     event.preventDefault();
     event.stopPropagation();
@@ -322,13 +344,18 @@ function CanvasNodeFrame({
       style={style}
       onClick={(event) => {
         event.stopPropagation();
+        if (event.shiftKey) {
+          const next = selectedNodeIds.includes(node.id) ? selectedNodeIds.filter((selectedId) => selectedId !== node.id) : [...selectedNodeIds, node.id];
+          selectNodes(next);
+          return;
+        }
         selectNode(node.id);
       }}
       onMouseDown={startDrag}
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        selectNode(node.id);
+        if (!selectedNodeIds.includes(node.id)) selectNode(node.id);
         onContextMenu({ x: canvas.x + 12, y: canvas.y + 12 });
       }}
     >
@@ -382,23 +409,33 @@ function CanvasNodeFrame({
 export function AssemblyCanvas() {
   incrementMetric('canvasRender');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | undefined>();
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [selectionBox, setSelectionBox] = useState<SelectionBox | undefined>();
   const [viewportBox, setViewportBox] = useState({ scrollLeft: 0, scrollTop: 0, width: 0, height: 0 });
+  const [viewportPanning, setViewportPanning] = useState(false);
   const project = useProjectStore((state) => state.project);
   const currentPageId = useProjectStore((state) => state.currentPageId);
   const currentFrameId = useProjectStore((state) => state.currentFrameId);
   const selectedNodeId = useProjectStore((state) => state.selectedNodeId);
   const selectedNodeIds = useProjectStore((state) => state.selectedNodeIds);
   const zoom = useCanvasViewportStore((state) => state.zoom);
+  const spacePanActive = useCanvasViewportStore((state) => state.spacePanActive);
   const setZoom = useCanvasViewportStore((state) => state.setZoom);
+  const setSpacePanActive = useCanvasViewportStore((state) => state.setSpacePanActive);
   const activeInteractionNodeId = useCanvasInteractionStore((state) => state.active?.nodeId);
   const setVisibleNodeCount = useCanvasInteractionStore((state) => state.setVisibleNodeCount);
   const apply = useProjectStore((state) => state.apply);
   const selectNode = useProjectStore((state) => state.selectNode);
+  const selectNodes = useProjectStore((state) => state.selectNodes);
   const selectFrame = useProjectStore((state) => state.selectFrame);
   const copySelectedNodes = useProjectStore((state) => state.copySelectedNodes);
   const pasteClipboard = useProjectStore((state) => state.pasteClipboard);
+  const undo = useProjectStore((state) => state.undo);
+  const redo = useProjectStore((state) => state.redo);
   const bringSelectedToFront = useProjectStore((state) => state.bringSelectedToFront);
   const sendSelectedToBack = useProjectStore((state) => state.sendSelectedToBack);
+  const moveSelectedForward = useProjectStore((state) => state.moveSelectedForward);
+  const moveSelectedBackward = useProjectStore((state) => state.moveSelectedBackward);
   const groupSelectedNodes = useProjectStore((state) => state.groupSelectedNodes);
   const ungroupSelectedNode = useProjectStore((state) => state.ungroupSelectedNode);
   const deleteSelectedNode = useProjectStore((state) => state.deleteSelectedNode);
@@ -406,8 +443,10 @@ export function AssemblyCanvas() {
   const page = project.pages.find((item) => item.id === currentPageId);
   const scrollRef = useRef<HTMLElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const suppressNextFrameClick = useRef(false);
   const pageFrame = page ? (page.frames?.find((frame) => frame.id === currentFrameId) ?? page.frames?.[0] ?? defaultFrameForPage(page)) : undefined;
   const context = useRendererContext(page, project);
+  const selectedNode = selectedNodeId && page ? page.nodes[selectedNodeId] : undefined;
 
   useEffect(() => {
     if (!page || page.frames?.length) return;
@@ -433,7 +472,7 @@ export function AssemblyCanvas() {
         return (explicitlyInFrame && (!parentId || parentId === page.rootNodeId)) || legacyRootChild;
       })
       .map((node, index) => ({ node, canvas: fallbackCanvasForNode(node, index, pageFrame.id) }))
-      .sort((left, right) => left.canvas.zIndex - right.canvas.zIndex || left.canvas.y - right.canvas.y || left.canvas.x - right.canvas.x));
+      .sort((left, right) => left.canvas.zIndex - right.canvas.zIndex || left.canvas.y - right.canvas.y || left.canvas.x - right.canvas.x || left.node.id.localeCompare(right.node.id)));
   }, [page, pageFrame, parentMap]);
 
   const viewport = useMemo(() => {
@@ -471,30 +510,144 @@ export function AssemblyCanvas() {
     }
   }, [apply, frameEntries, page, pageFrame]);
 
+  const updateViewportBox = useCallback((element: HTMLElement) => {
+    setViewportBox(readScrollBox(element));
+  }, []);
+
+  const centerActiveFrame = useCallback(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement || !pageFrame) return;
+    const nextScrollLeft = Math.max(0, Math.round((CANVAS_PADDING + pageFrame.x + pageFrame.width / 2) * zoom - scrollElement.clientWidth / 2));
+    const nextScrollTop = Math.max(0, Math.round((CANVAS_PADDING + pageFrame.y + pageFrame.height / 2) * zoom - scrollElement.clientHeight / 2));
+    scrollElement.scrollLeft = nextScrollLeft;
+    scrollElement.scrollTop = nextScrollTop;
+    updateViewportBox(scrollElement);
+  }, [pageFrame, updateViewportBox, zoom]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableShortcutTarget(event.target)) return;
+      if (event.key === ' ') {
+        event.preventDefault();
+        if (!event.repeat) setSpacePanActive(true);
+        return;
+      }
+      if (event.key === 'Home') {
+        event.preventDefault();
+        centerActiveFrame();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setContextMenu(undefined);
+        selectNodes([]);
+        return;
+      }
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        deleteSelectedNode();
+        return;
+      }
       const command = event.ctrlKey || event.metaKey;
       if (!command) return;
       if (event.key.toLowerCase() === 'c') {
         event.preventDefault();
         copySelectedNodes();
+        return;
       }
       if (event.key.toLowerCase() === 'v') {
         event.preventDefault();
         pasteClipboard();
+        return;
+      }
+      if (event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        if (event.shiftKey) ungroupSelectedNode();
+        else groupSelectedNodes();
+        return;
+      }
+      if (event.key === ']') {
+        event.preventDefault();
+        if (event.shiftKey) bringSelectedToFront();
+        else moveSelectedForward();
+        return;
+      }
+      if (event.key === '[') {
+        event.preventDefault();
+        if (event.shiftKey) sendSelectedToBack();
+        else moveSelectedBackward();
       }
     };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === ' ') setSpacePanActive(false);
+    };
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [copySelectedNodes, pasteClipboard]);
+    document.addEventListener('keyup', handleKeyUp);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [
+    bringSelectedToFront,
+    centerActiveFrame,
+    copySelectedNodes,
+    deleteSelectedNode,
+    groupSelectedNodes,
+    moveSelectedBackward,
+    moveSelectedForward,
+    pasteClipboard,
+    redo,
+    selectNodes,
+    sendSelectedToBack,
+    setSpacePanActive,
+    undo,
+    ungroupSelectedNode,
+  ]);
 
   if (!page || !pageFrame) return null;
 
   function handleWheel(event: WheelEvent<HTMLElement>) {
-    if (!event.ctrlKey) return;
+    if (!event.ctrlKey && !event.metaKey) return;
+    if (isEditableShortcutTarget(event.target)) return;
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
     setZoom(Math.min(1.8, Math.max(0.5, Number((zoom + direction * 0.08).toFixed(2)))));
+  }
+
+  function startViewportPan(event: ReactMouseEvent<HTMLElement>) {
+    if (isEditableShortcutTarget(event.target)) return;
+    const canPan = event.button === 1 || (event.button === 0 && spacePanActive);
+    if (!canPan) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu(undefined);
+    setViewportPanning(true);
+
+    const target = event.currentTarget;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startScrollLeft = target.scrollLeft;
+    const startScrollTop = target.scrollTop;
+
+    const onMove = (moveEvent: globalThis.MouseEvent) => {
+      target.scrollLeft = startScrollLeft - (moveEvent.clientX - startX);
+      target.scrollTop = startScrollTop - (moveEvent.clientY - startY);
+      updateViewportBox(target);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      setViewportPanning(false);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
   }
 
   function dropPointInFrame(event: DragEvent<HTMLElement>) {
@@ -507,22 +660,92 @@ export function AssemblyCanvas() {
     };
   }
 
+  function pointInFrame(event: Pick<globalThis.MouseEvent, 'clientX' | 'clientY'>) {
+    const rect = frameRef.current?.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.round((event.clientX - (rect?.left ?? 0)) / zoom)),
+      y: Math.max(0, Math.round((event.clientY - (rect?.top ?? 0)) / zoom)),
+    };
+  }
+
+  function startBoxSelect(event: ReactMouseEvent<HTMLDivElement>) {
+    if (spacePanActive || event.button !== 0 || isEditableShortcutTarget(event.target)) return;
+    if (event.target !== event.currentTarget && !(event.target as HTMLElement).classList.contains('canvas-page-frame-label')) return;
+    const start = pointInFrame(event.nativeEvent);
+    let latest: SelectionBox = { startX: start.x, startY: start.y, x: start.x, y: start.y, width: 0, height: 0 };
+    let moved = false;
+
+    const onMove = (moveEvent: globalThis.MouseEvent) => {
+      const point = pointInFrame(moveEvent);
+      moved = moved || Math.abs(point.x - start.x) > 3 || Math.abs(point.y - start.y) > 3;
+      latest = {
+        startX: start.x,
+        startY: start.y,
+        x: Math.min(start.x, point.x),
+        y: Math.min(start.y, point.y),
+        width: Math.abs(point.x - start.x),
+        height: Math.abs(point.y - start.y),
+      };
+      setSelectionBox(latest);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      setSelectionBox(undefined);
+      if (!moved) return;
+      suppressNextFrameClick.current = true;
+      const right = latest.x + latest.width;
+      const bottom = latest.y + latest.height;
+      selectNodes(
+        frameEntries
+          .filter(({ canvas }) => canvas.x < right && canvas.x + canvas.width > latest.x && canvas.y < bottom && canvas.y + canvas.height > latest.y)
+          .map(({ node }) => node.id),
+      );
+    };
+
+    setContextMenu(undefined);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
+  }
+
+  function closeContextMenu() {
+    setContextMenu(undefined);
+  }
+
+  function renameSelectedFromContextMenu() {
+    if (!selectedNode) return;
+    const nextName = window.prompt('重命名组件', selectedNode.name);
+    if (!nextName?.trim()) return;
+    useProjectStore.getState().renameSelectedNode(nextName.trim());
+  }
+
+  function toggleSelectedLock() {
+    if (!page || !selectedNodeId || !selectedNode) return;
+    apply({ type: 'setNodeCanvasLocked', pageId: page.id, nodeId: selectedNodeId, locked: !selectedNode.canvas?.locked });
+  }
+
+  function hideSelectedNode() {
+    if (!page || !selectedNodeId || !selectedNode) return;
+    apply({ type: 'setNodeCanvasHidden', pageId: page.id, nodeId: selectedNodeId, hidden: true });
+  }
+
+  function runContextAction(action: () => void) {
+    action();
+    closeContextMenu();
+  }
+
   return (
     <section
       ref={scrollRef}
-      className="assembly-canvas"
+      className={`assembly-canvas${spacePanActive ? ' space-pan-ready' : ''}${viewportPanning ? ' panning' : ''}`}
       onClick={() => {
         setContextMenu(undefined);
         selectNode(page.rootNodeId);
       }}
+      onMouseDown={startViewportPan}
       onWheel={handleWheel}
       onScroll={(event) => {
-        setViewportBox({
-          scrollLeft: event.currentTarget.scrollLeft,
-          scrollTop: event.currentTarget.scrollTop,
-          width: event.currentTarget.clientWidth,
-          height: event.currentTarget.clientHeight,
-        });
+        updateViewportBox(event.currentTarget);
       }}
       onDragOver={(event) => {
         if (event.dataTransfer.types.includes('application/x-admin-component')) event.preventDefault();
@@ -530,23 +753,35 @@ export function AssemblyCanvas() {
     >
       <div className="canvas-zoom-indicator">{Math.round(zoom * 100)}%</div>
       <div
-        className="assembly-zoom-surface canvas-workspace"
+        className="canvas-scroll-sizer"
         style={{
-          transform: `scale(${zoom})`,
-          width: `${100 / zoom}%`,
-          minHeight: `${100 / zoom}%`,
-          padding: CANVAS_PADDING,
+          width: Math.ceil((CANVAS_PADDING * 2 + pageFrame.x + pageFrame.width) * zoom),
+          height: Math.ceil((CANVAS_PADDING * 2 + pageFrame.y + pageFrame.height) * zoom),
         }}
       >
+        <div
+          className="assembly-zoom-surface canvas-workspace"
+          style={{
+            transform: `scale(${zoom})`,
+            width: CANVAS_PADDING * 2 + pageFrame.x + pageFrame.width,
+            height: CANVAS_PADDING * 2 + pageFrame.y + pageFrame.height,
+            padding: CANVAS_PADDING,
+          }}
+        >
         <div
           ref={frameRef}
           data-testid="canvas-page-frame"
           className={`canvas-page-frame${selectedNodeId === page.rootNodeId ? ' selected' : ''}`}
-          style={{ width: pageFrame.width, height: pageFrame.height, background: pageFrame.background?.color ?? '#ffffff' }}
+          style={{ width: pageFrame.width, height: pageFrame.height, marginLeft: pageFrame.x, marginTop: pageFrame.y, background: pageFrame.background?.color ?? '#ffffff' }}
           onClick={(event) => {
             event.stopPropagation();
+            if (suppressNextFrameClick.current) {
+              suppressNextFrameClick.current = false;
+              return;
+            }
             selectNode(page.rootNodeId);
           }}
+          onMouseDown={startBoxSelect}
           onDragOver={(event) => {
             if (event.dataTransfer.types.includes('application/x-admin-component')) event.preventDefault();
           }}
@@ -560,15 +795,22 @@ export function AssemblyCanvas() {
             addComponentToParent(type, page.rootNodeId, {
               ...point,
               ...size,
-              zIndex: nextZIndex(page, pageFrame.id),
+              zIndex: getNextFrameZIndex(page, pageFrame.id),
               parentFrameId: pageFrame.id,
             });
           }}
         >
           <div className="canvas-page-frame-label">{pageFrame.name}</div>
+          {selectionBox ? (
+            <div
+              className="canvas-selection-box"
+              data-testid="canvas-selection-box"
+              style={{ left: selectionBox.x, top: selectionBox.y, width: selectionBox.width, height: selectionBox.height }}
+            />
+          ) : null}
           {frameEntries.length === 0 ? (
             <div className="canvas-empty-state">
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Drop components from the library" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="从左侧组件库拖入组件" />
             </div>
           ) : (
             frameEntries.map(({ node, canvas }) => (
@@ -583,15 +825,23 @@ export function AssemblyCanvas() {
               style={{ left: contextMenu.x, top: contextMenu.y }}
               onClick={(event) => event.stopPropagation()}
             >
-              <Button size="small" onClick={() => { copySelectedNodes(); setContextMenu(undefined); }}>Copy</Button>
-              <Button size="small" onClick={() => { pasteClipboard(); setContextMenu(undefined); }}>Paste</Button>
-              <Button size="small" onClick={() => { bringSelectedToFront(); setContextMenu(undefined); }}>Bring front</Button>
-              <Button size="small" onClick={() => { sendSelectedToBack(); setContextMenu(undefined); }}>Send back</Button>
-              <Button size="small" onClick={() => { groupSelectedNodes(); setContextMenu(undefined); }}>Group</Button>
-              <Button size="small" onClick={() => { ungroupSelectedNode(); setContextMenu(undefined); }}>Ungroup</Button>
-              <Button size="small" danger onClick={() => { deleteSelectedNode(); setContextMenu(undefined); }}>Delete</Button>
+              <Button size="small" aria-label="context-copy" onClick={() => runContextAction(copySelectedNodes)}>复制</Button>
+              <Button size="small" aria-label="context-paste" onClick={() => runContextAction(pasteClipboard)}>粘贴</Button>
+              <Button size="small" aria-label="context-rename" onClick={() => runContextAction(renameSelectedFromContextMenu)}>重命名</Button>
+              <Button size="small" aria-label="context-lock" onClick={() => runContextAction(toggleSelectedLock)}>{selectedNode?.canvas?.locked ? '解锁' : '锁定'}</Button>
+              <Button size="small" aria-label="context-hide" onClick={() => runContextAction(hideSelectedNode)}>隐藏</Button>
+              <Button size="small" aria-label="context-bring-front" onClick={() => runContextAction(bringSelectedToFront)}>置于顶层</Button>
+              <Button size="small" aria-label="context-move-forward" onClick={() => runContextAction(moveSelectedForward)}>上移一层</Button>
+              <Button size="small" aria-label="context-move-backward" onClick={() => runContextAction(moveSelectedBackward)}>下移一层</Button>
+              <Button size="small" aria-label="context-send-back" onClick={() => runContextAction(sendSelectedToBack)}>置于底层</Button>
+              <Button size="small" aria-label="context-group" onClick={() => runContextAction(groupSelectedNodes)}>组合</Button>
+              <Button size="small" aria-label="context-ungroup" onClick={() => runContextAction(ungroupSelectedNode)}>取消组合</Button>
+              <Button size="small" aria-label="context-save-template" onClick={() => { setSaveTemplateOpen(true); closeContextMenu(); }}>保存为模板</Button>
+              <Button size="small" aria-label="context-delete" danger onClick={() => runContextAction(deleteSelectedNode)}>删除</Button>
             </div>
           ) : null}
+          <SaveTemplateModal open={saveTemplateOpen} onClose={() => setSaveTemplateOpen(false)} />
+        </div>
         </div>
       </div>
     </section>

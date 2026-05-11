@@ -1,5 +1,5 @@
 import type { Interaction, Project } from '../domain/types';
-import type { RuntimeState } from '../runtime/runtimeState';
+import { isRuntimeNodeDisabled, type RuntimeState } from '../runtime/runtimeState';
 import { executeAction, type RuntimeEvent } from './actions';
 import { conditionsPass } from './conditions';
 
@@ -13,6 +13,9 @@ export function matchInteractions(interactions: Interaction[], event: RuntimeEve
 }
 
 export function runInteraction(project: Project, state: RuntimeState, event: RuntimeEvent): RuntimeState {
+  const eventNodeId = event.componentId.split(':')[0] ?? event.componentId;
+  if (isRuntimeNodeDisabled(state, eventNodeId)) return state;
+
   let next: RuntimeState = { ...state };
   if (event.payload?.row && typeof event.payload.row === 'object' && !Array.isArray(event.payload.row)) {
     next = { ...next, currentRow: event.payload.row };

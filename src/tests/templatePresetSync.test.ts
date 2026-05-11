@@ -16,7 +16,7 @@ describe('template preset sync', () => {
     const template = componentPresetToTemplate(preset);
     const roundTrip = templateToComponentPreset(template, '2026-05-07T00:00:00.000Z');
 
-    expect(template.type).toBe('component');
+    expect(template.type).toBe('componentPreset');
     expect((template.content.nodes[template.content.rootNodeId] as ComponentNode).props.headerTitle).toBe('订单列表');
     expect(roundTrip.baseComponentType).toBe('pro.ProTable');
     expect(roundTrip.props.columns).toEqual([{ key: 'orderNo', title: '订单号' }]);

@@ -6,6 +6,7 @@ import { UserTemplateSchema } from '../templates/userTemplateSchema';
 describe('schema contracts', () => {
   it('parses all operation variants used by the domain type', () => {
     expect(OperationSchema.parse({ type: 'updateNodeName', pageId: 'page', nodeId: 'node', name: '名称' }).type).toBe('updateNodeName');
+    expect(OperationSchema.parse({ type: 'updateNodeRuntime', pageId: 'page', nodeId: 'node', runtime: { initialVisible: true, initialDisabled: false } }).type).toBe('updateNodeRuntime');
     expect(OperationSchema.parse({ type: 'reorderNodeToIndex', pageId: 'page', parentNodeId: 'parent', nodeId: 'node', targetIndex: 1 }).type).toBe('reorderNodeToIndex');
     expect(OperationSchema.parse({ type: 'reorderNode', pageId: 'page', parentNodeId: 'parent', nodeId: 'node', targetNodeId: 'target', position: 'after' })).toMatchObject({ position: 'after' });
   });

@@ -103,6 +103,8 @@ Current active phase:
 
 The product should now close the editor workflow: Space-pan canvas navigation, layer management, template save/reuse, Recent Used assets, runtime show/hide and enable/disable interactions, context menus, shortcuts, undo/redo, inspector state controls, preview execution, and business-readable PRD sync. Do not expand component quantity during this phase.
 
+S4 feature development must start from a clean baseline: type check, tests, build, and configured lint should pass before implementing new workflow behavior.
+
 ## Plain PRD Rule
 
 PRD must be written for product managers, business users, and developers reading business requirements.

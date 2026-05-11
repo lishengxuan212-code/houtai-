@@ -1,4 +1,4 @@
-import { Button, Form, Input, Modal, Radio, Segmented } from 'antd';
+import { Button, Form, Input, InputNumber, Modal, Radio, Segmented } from 'antd';
 import type { BusinessType } from '../../domain/types';
 import { useProjectStore } from '../../store/projectStore';
 
@@ -12,15 +12,23 @@ const businessTypes: { label: string; value: BusinessType }[] = [
   { label: '数据看板后台', value: 'dashboard' },
 ];
 
+type NewProjectForm = {
+  name: string;
+  businessType: BusinessType;
+  template: 'blank' | 'builtin';
+  canvasWidth: number;
+  canvasHeight: number;
+};
+
 export function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const createProject = useProjectStore((state) => state.createProject);
-  const [form] = Form.useForm<{ name: string; businessType: BusinessType; template: 'blank' | 'builtin' }>();
+  const [form] = Form.useForm<NewProjectForm>();
   return (
-    <Modal title="新建项目" open={open} onCancel={onClose} footer={null} width={560}>
+    <Modal title="新建项目" open={open} onCancel={onClose} footer={null} width={620}>
       <Form
         form={form}
         layout="vertical"
-        initialValues={{ name: '新后台项目', businessType: 'blank', template: 'blank' }}
+        initialValues={{ name: '新后台项目', businessType: 'blank', template: 'blank', canvasWidth: 1200, canvasHeight: 760 }}
         onFinish={(values) => {
           createProject(values);
           onClose();
@@ -32,6 +40,14 @@ export function NewProjectModal({ open, onClose }: { open: boolean; onClose: () 
         <Form.Item label="项目类型" name="businessType">
           <Radio.Group options={businessTypes} />
         </Form.Item>
+        <div className="project-canvas-size-row">
+          <Form.Item label="画布宽度" name="canvasWidth" rules={[{ required: true, message: '请输入画布宽度' }]}>
+            <InputNumber min={320} max={3840} step={10} addonAfter="px" />
+          </Form.Item>
+          <Form.Item label="画布高度" name="canvasHeight" rules={[{ required: true, message: '请输入画布高度' }]}>
+            <InputNumber min={320} max={2160} step={10} addonAfter="px" />
+          </Form.Item>
+        </div>
         <Form.Item label="创建方式" name="template">
           <Segmented options={[{ label: '从空白创建', value: 'blank' }, { label: '从内置模板创建', value: 'builtin' }]} />
         </Form.Item>

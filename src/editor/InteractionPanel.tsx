@@ -14,6 +14,12 @@ const templateOptions: { label: string; value: InteractionTemplateId }[] = [
   { label: '搜索刷新表格', value: 'searchRefreshTable' },
   { label: '删除二次确认', value: 'deleteWithConfirm' },
   { label: '显示提示', value: 'showMessage' },
+  { label: '显示组件', value: 'showNode' },
+  { label: '隐藏组件', value: 'hideNode' },
+  { label: '切换显示/隐藏', value: 'toggleNodeVisibility' },
+  { label: '启用组件', value: 'enableNode' },
+  { label: '禁用组件', value: 'disableNode' },
+  { label: '切换启用/禁用', value: 'toggleNodeDisabled' },
 ];
 
 export function InteractionPanel() {
@@ -83,6 +89,16 @@ export function InteractionPanel() {
                 {templateId === 'buttonOpenModal' || templateId === 'closeModal' || templateId === 'formSubmit' || templateId === 'deleteWithConfirm' ? (
                   <Form.Item name="targetNodeId" label="目标弹窗/抽屉">
                     <Select options={modalOptions} />
+                  </Form.Item>
+                ) : null}
+                {templateId === 'showNode' ||
+                templateId === 'hideNode' ||
+                templateId === 'toggleNodeVisibility' ||
+                templateId === 'enableNode' ||
+                templateId === 'disableNode' ||
+                templateId === 'toggleNodeDisabled' ? (
+                  <Form.Item name="targetNodeId" label="目标组件">
+                    <Select options={nodeOptions} showSearch optionFilterProp="label" />
                   </Form.Item>
                 ) : null}
                 {templateId === 'navigatePage' ? (

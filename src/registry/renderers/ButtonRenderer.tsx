@@ -9,6 +9,7 @@ export function ButtonRenderer({ node, context }: NodeRendererProps) {
     <Button
       type={variant === 'primary' ? 'primary' : variant === 'link' ? 'link' : 'default'}
       danger={asBoolean(node.props.danger)}
+      disabled={context.isNodeDisabled?.(node.id) === true}
       onClick={() => context.dispatch?.({ componentId: node.id, event: 'click' })}
     >
       {context.inlineEdit?.text({ node, propKey: 'text', value: text }) ?? text}

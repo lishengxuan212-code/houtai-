@@ -21,7 +21,7 @@ function scopedValue(scopeValue: JsonRecord | undefined, propsFallback: JsonReco
   for (const group of groups) {
     for (const field of group.fields) {
       if (getValueAtPropPath(next, field.path) !== undefined) continue;
-      const fallback = getValueAtPropPath(propsFallback, field.path);
+      const fallback = field.path === 'rows' ? (propsFallback.rows ?? propsFallback.data) : getValueAtPropPath(propsFallback, field.path);
       if (fallback !== undefined) next = setValueAtPropPath(next, field.path, fallback);
     }
   }
@@ -59,7 +59,7 @@ export function GeneratedInspector({ node, nodeName, definition, updateProps, up
         items={[
           {
             key: 'debug',
-            label: 'Advanced / Debug',
+            label: '高级 / 调试',
             children: <AdvancedJsonEditor key={JSON.stringify(node.props)} value={node.props} onApply={updateProps} />,
           },
         ]}

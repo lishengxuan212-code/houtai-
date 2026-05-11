@@ -3,6 +3,17 @@ import type { ComponentApiSchema } from './apiSchema';
 import type { PropSchemaGroup } from './propSchema';
 
 export type ComponentDefinitionSource = 'system' | 'antd' | 'ant-design-icons' | 'pro-components';
+export type ComponentGenerationRole = 'foundation' | 'enhancement';
+export type ComponentStyleCapability =
+  | 'background'
+  | 'border'
+  | 'borderRadius'
+  | 'shadow'
+  | 'padding'
+  | 'typography'
+  | 'color'
+  | 'size'
+  | 'spacing';
 
 export type ComponentDefinition = {
   type: string;
@@ -21,6 +32,8 @@ export type ComponentDefinition = {
   interactionSchema?: PropSchemaGroup[];
   slotSchema?: PropSchemaGroup[];
   supportedEvents: ComponentEvent[];
+  generationRole?: ComponentGenerationRole;
+  styleCapabilities?: ComponentStyleCapability[];
   allowedChildren?: string[];
   canHaveChildren?: boolean;
   enabled: boolean;

@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { ComponentLibraryPanel } from '../editor/components/ComponentLibraryPanel';
 import { createNode } from '../registry/createNode';
 import { createComponentPreset } from '../registry/componentPresetRegistry';
 import { clearComponentLibraryState, getComponentDefaultOverrides, restoreComponentDefaultProps, saveComponentDefaultProps, saveComponentPreset } from '../store/componentLibraryStore';
 
 describe('component library editor state', () => {
+  it('shows task-oriented vertical categories with detailed components', () => {
+    render(<ComponentLibraryPanel />);
+
+    expect(screen.getByTestId('component-library-category-list')).toBeInTheDocument();
+    expect(screen.getByTestId('component-library-detail-list')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '表格' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '按钮' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '视觉复刻' })).toBeInTheDocument();
+    expect(screen.getAllByText(/Table|ProTable/).length).toBeGreaterThan(0);
+  });
+
   it('saves default props for future nodes without changing existing node props', () => {
     clearComponentLibraryState();
     const existing = createNode('Button');

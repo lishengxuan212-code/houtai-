@@ -73,6 +73,11 @@ export const ComponentSemanticSchema = z.object({
   description: z.string().optional(),
 });
 
+export const ComponentRuntimeSchema = z.object({
+  initialVisible: z.boolean().optional(),
+  initialDisabled: z.boolean().optional(),
+});
+
 export const PageFrameBackgroundSchema = z.object({
   color: z.string().optional(),
   imageUrl: z.string().optional(),
@@ -112,6 +117,7 @@ export const ComponentNodeSchema = z.object({
   events: z.record(z.string(), JsonRecordSchema).optional(),
   canvas: NodeCanvasSchema.optional(),
   semantic: ComponentSemanticSchema.optional(),
+  runtime: ComponentRuntimeSchema.optional(),
   layout: NodeLayoutSchema.optional(),
   containerLayout: ContainerLayoutSchema.optional(),
   children: z.array(z.string()).optional(),
@@ -170,11 +176,24 @@ export const ConditionSchema = z.object({
 export const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('openModal'), targetNodeId: z.string() }),
   z.object({ type: z.literal('closeModal'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('openDrawer'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('closeDrawer'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('showNode'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('hideNode'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('toggleNodeVisibility'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('enableNode'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('disableNode'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('toggleNodeDisabled'), targetNodeId: z.string() }),
   z.object({ type: z.literal('navigate'), targetPageId: z.string() }),
+  z.object({ type: z.literal('navigateToPage'), targetPageId: z.string() }),
   z.object({ type: z.literal('setVariable'), variableId: z.string(), value: ValueRefSchema }),
   z.object({ type: z.literal('refreshData'), dataSourceId: z.string() }),
   z.object({ type: z.literal('showMessage'), level: z.enum(['success', 'info', 'warning', 'error']), message: z.string() }),
+  z.object({ type: z.literal('setNodeProp'), targetNodeId: z.string(), propKey: z.string(), value: ValueRefSchema }),
+  z.object({ type: z.literal('setFormValue'), targetNodeId: z.string(), field: z.string(), value: ValueRefSchema }),
   z.object({ type: z.literal('resetForm'), targetNodeId: z.string() }),
+  z.object({ type: z.literal('selectTab'), targetNodeId: z.string(), tabKey: z.string() }),
+  z.object({ type: z.literal('scrollToNode'), targetNodeId: z.string() }),
   z.object({
     type: z.literal('submitMock'),
     dataSourceId: z.string(),
@@ -224,6 +243,7 @@ export const OperationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('updateNodeData'), pageId: z.string(), nodeId: z.string(), data: JsonRecordSchema }),
   z.object({ type: z.literal('updateNodeEvents'), pageId: z.string(), nodeId: z.string(), events: z.record(z.string(), JsonRecordSchema) }),
   z.object({ type: z.literal('updateNodeSemantic'), pageId: z.string(), nodeId: z.string(), semantic: ComponentSemanticSchema }),
+  z.object({ type: z.literal('updateNodeRuntime'), pageId: z.string(), nodeId: z.string(), runtime: ComponentRuntimeSchema }),
   z.object({
     type: z.literal('cloneNodes'),
     pageId: z.string(),
@@ -231,7 +251,9 @@ export const OperationSchema = z.discriminatedUnion('type', [
     nodeIds: z.array(z.string()),
     offset: z.object({ x: z.number(), y: z.number() }).optional(),
     targetFrameId: z.string().optional(),
+    placeAtHighestLayer: z.boolean().optional(),
   }),
+  z.object({ type: z.literal('updateNodeLayerOrder'), pageId: z.string(), frameId: z.string(), orderedNodeIds: z.array(z.string()) }),
   z.object({ type: z.literal('groupNodes'), pageId: z.string(), parentNodeId: z.string(), groupNode: ComponentNodeSchema, childNodeIds: z.array(z.string()) }),
   z.object({ type: z.literal('ungroupNode'), pageId: z.string(), groupNodeId: z.string() }),
   z.object({ type: z.literal('alignNodes'), pageId: z.string(), nodeIds: z.array(z.string()), alignment: z.enum(['left', 'center', 'right', 'top', 'middle', 'bottom']) }),

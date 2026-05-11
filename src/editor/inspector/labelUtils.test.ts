@@ -7,5 +7,6 @@ describe('inspector label utils', () => {
     expect(propLabel('columns')).toBe('表格列');
     expect(propLabel('fields')).toBe('字段');
     expect(propLabel('submitText')).toBe('提交按钮文案');
+    expect(propLabel('placeholder')).toBe('占位文案');
   });
 });

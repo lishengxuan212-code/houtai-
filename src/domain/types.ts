@@ -37,6 +37,11 @@ export type ComponentSemantic = {
   description?: string;
 };
 
+export type ComponentRuntimeConfig = {
+  initialVisible?: boolean;
+  initialDisabled?: boolean;
+};
+
 export type PageFrameBackground = {
   color?: string;
   imageUrl?: string;
@@ -89,6 +94,7 @@ export type ComponentNode = {
   events?: Record<string, JsonRecord>;
   canvas?: NodeCanvasConfig;
   semantic?: ComponentSemantic;
+  runtime?: ComponentRuntimeConfig;
   layout?: NodeLayoutConfig;
   containerLayout?: ContainerLayoutConfig;
   children?: string[];
@@ -144,11 +150,24 @@ export type Condition = {
 export type Action =
   | { type: 'openModal'; targetNodeId: string }
   | { type: 'closeModal'; targetNodeId: string }
+  | { type: 'openDrawer'; targetNodeId: string }
+  | { type: 'closeDrawer'; targetNodeId: string }
+  | { type: 'showNode'; targetNodeId: string }
+  | { type: 'hideNode'; targetNodeId: string }
+  | { type: 'toggleNodeVisibility'; targetNodeId: string }
+  | { type: 'enableNode'; targetNodeId: string }
+  | { type: 'disableNode'; targetNodeId: string }
+  | { type: 'toggleNodeDisabled'; targetNodeId: string }
   | { type: 'navigate'; targetPageId: string }
+  | { type: 'navigateToPage'; targetPageId: string }
   | { type: 'setVariable'; variableId: string; value: ValueRef }
   | { type: 'refreshData'; dataSourceId: string }
   | { type: 'showMessage'; level: 'success' | 'info' | 'warning' | 'error'; message: string }
+  | { type: 'setNodeProp'; targetNodeId: string; propKey: string; value: ValueRef }
+  | { type: 'setFormValue'; targetNodeId: string; field: string; value: ValueRef }
   | { type: 'resetForm'; targetNodeId: string }
+  | { type: 'selectTab'; targetNodeId: string; tabKey: string }
+  | { type: 'scrollToNode'; targetNodeId: string }
   | { type: 'submitMock'; dataSourceId: string; payloadFrom: 'form' | 'currentRow'; operation?: 'create' | 'update' | 'delete' };
 
 export type Interaction = {
@@ -192,6 +211,10 @@ export type ProjectSummary = {
   createdAt: string;
   updatedAt: string;
   pageCount: number;
+  canvasSize?: {
+    width: number;
+    height: number;
+  };
   templateSourceId?: string;
 };
 
@@ -203,7 +226,9 @@ export type Operation =
   | { type: 'updateNodeData'; pageId: string; nodeId: string; data: JsonRecord }
   | { type: 'updateNodeEvents'; pageId: string; nodeId: string; events: Record<string, JsonRecord> }
   | { type: 'updateNodeSemantic'; pageId: string; nodeId: string; semantic: ComponentSemantic }
-  | { type: 'cloneNodes'; pageId: string; parentNodeId: string; nodeIds: string[]; offset?: { x: number; y: number }; targetFrameId?: string }
+  | { type: 'updateNodeRuntime'; pageId: string; nodeId: string; runtime: ComponentRuntimeConfig }
+  | { type: 'cloneNodes'; pageId: string; parentNodeId: string; nodeIds: string[]; offset?: { x: number; y: number }; targetFrameId?: string; placeAtHighestLayer?: boolean }
+  | { type: 'updateNodeLayerOrder'; pageId: string; frameId: string; orderedNodeIds: string[] }
   | { type: 'groupNodes'; pageId: string; parentNodeId: string; groupNode: ComponentNode; childNodeIds: string[] }
   | { type: 'ungroupNode'; pageId: string; groupNodeId: string }
   | { type: 'alignNodes'; pageId: string; nodeIds: string[]; alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' }

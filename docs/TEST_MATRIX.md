@@ -1,5 +1,9 @@
 # Test Matrix
 
+Active phase: `V1.1-S4-canvas-actions-layer-template-workflow`.
+
+S4 feature work starts only after the baseline verification commands pass.
+
 ## Existing Coverage
 
 - `src/tests/antdComponentLibrary.test.ts`: Ant Design component manifest, search, categories, Pro disabled state.

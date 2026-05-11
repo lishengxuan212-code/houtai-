@@ -15,8 +15,8 @@ export function RightInspectorPanel() {
           { key: 'props', label: '属性', children: <PropertyPanel /> },
           { key: 'interactions', label: '交互', children: <InteractionPanel /> },
           { key: 'data', label: '数据', children: <DataPanel /> },
-          { key: 'ai', label: 'AI', children: <AiPanel /> },
-          { key: 'advanced', label: '高级', children: <ExportPanel /> },
+          { key: 'ai', label: 'AI 生成', children: <AiPanel /> },
+          { key: 'advanced', label: '导出', children: <ExportPanel /> },
         ]}
       />
     </aside>

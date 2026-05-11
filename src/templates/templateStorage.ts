@@ -24,7 +24,41 @@ export function saveUserTemplate(template: UserTemplate): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([parsed, ...templates]));
 }
 
+export function getUserTemplate(templateId: string): UserTemplate | undefined {
+  return listUserTemplates().find((item) => item.id === templateId);
+}
+
 export function deleteUserTemplate(templateId: string): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(listUserTemplates().filter((item) => item.id !== templateId)));
+}
+
+export function renameUserTemplate(templateId: string, name: string): UserTemplate | undefined {
+  const template = getUserTemplate(templateId);
+  if (!template) return undefined;
+  const next = { ...structuredClone(template), name, updatedAt: new Date().toISOString(), version: template.version + 1 };
+  saveUserTemplate(next);
+  return next;
+}
+
+export function duplicateUserTemplate(templateId: string): UserTemplate | undefined {
+  const template = getUserTemplate(templateId);
+  if (!template) return undefined;
+  const now = new Date().toISOString();
+  const next = {
+    ...structuredClone(template),
+    id: `template_${Date.now().toString(36)}`,
+    name: `${template.name} Copy`,
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+  };
+  saveUserTemplate(next);
+  return next;
+}
+
+export function updateUserTemplate(template: UserTemplate): UserTemplate {
+  const next = { ...structuredClone(template), updatedAt: new Date().toISOString(), version: template.version + 1 };
+  saveUserTemplate(next);
+  return next;
 }

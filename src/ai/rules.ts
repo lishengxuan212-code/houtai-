@@ -197,3 +197,22 @@ export function runAiRules(project: Project): AiSuggestion[] {
     return order[a.severity] - order[b.severity];
   });
 }
+
+export function runAiRulesForPage(project: Project, pageId: string): AiSuggestion[] {
+  const page = project.pages.find((item) => item.id === pageId);
+  if (!page) return [];
+  const nodeIds = new Set(Object.keys(page.nodes));
+  const scopedProject: Project = {
+    ...project,
+    pages: [page],
+    interactions: project.interactions.filter((interaction) => {
+      const triggerNodeId = interaction.trigger.componentId.split(':')[0] ?? interaction.trigger.componentId;
+      return nodeIds.has(triggerNodeId);
+    }),
+  };
+  return runAiRules(scopedProject).filter((suggestion) => {
+    const affectedNodes = suggestion.affectedNodeIds ?? [];
+    if (affectedNodes.length === 0) return true;
+    return affectedNodes.some((nodeId) => nodeIds.has(nodeId.split(':')[0] ?? nodeId));
+  });
+}

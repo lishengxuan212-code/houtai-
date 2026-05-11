@@ -6,6 +6,10 @@
 - QA Gate
 - Architecture Gate
 
+Active phase: `V1.1-S4-canvas-actions-layer-template-workflow`.
+
+Baseline requirement: `pnpm typecheck`, `pnpm test`, `pnpm build`, and configured `pnpm lint` must pass before S4 feature development proceeds.
+
 ## S4 UX Workflow Gate
 
 PASS only if the product works like a continuous Axure-style backoffice prototype editor:

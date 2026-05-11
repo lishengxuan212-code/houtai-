@@ -22,6 +22,7 @@ function writeIndex(summaries: ProjectSummary[]) {
 }
 
 export function projectSummary(project: Project, templateSourceId?: string): ProjectSummary {
+  const firstFrame = project.pages[0]?.frames?.[0];
   return {
     id: project.id,
     name: project.name,
@@ -29,6 +30,7 @@ export function projectSummary(project: Project, templateSourceId?: string): Pro
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
     pageCount: project.pages.length,
+    ...(firstFrame ? { canvasSize: { width: firstFrame.width, height: firstFrame.height } } : {}),
     ...(project.description ? { description: project.description } : {}),
     ...(templateSourceId ? { templateSourceId } : {}),
   };

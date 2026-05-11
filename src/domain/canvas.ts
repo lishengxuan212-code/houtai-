@@ -9,11 +9,16 @@ export type CloneNodesOptions = {
   idFactory?: (oldId: string) => string;
   offset?: { x: number; y: number };
   targetFrameId?: string;
+  placeAtHighestLayer?: boolean;
 };
 export type CloneNodesResult = {
   nodes: Record<string, ComponentNode>;
   rootIds: string[];
   idMap: Record<string, string>;
+};
+export type LayerZIndexPatch = {
+  nodeId: string;
+  zIndex: number;
 };
 export type CanvasAlignment = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
 export type DistributionDirection = 'horizontal' | 'vertical';
@@ -57,11 +62,7 @@ function collectSubtreeIds(page: Page, nodeId: string, ids: Set<string>): void {
 }
 
 function sortedByCanvas(nodes: ComponentNode[]): ComponentNode[] {
-  return [...nodes].sort((left, right) => {
-    const leftCanvas = canvasFor(left);
-    const rightCanvas = canvasFor(right);
-    return leftCanvas.zIndex - rightCanvas.zIndex || leftCanvas.y - rightCanvas.y || leftCanvas.x - rightCanvas.x;
-  });
+  return sortNodesByZIndex(nodes);
 }
 
 function getUnlockedNodes(nodes: ComponentNode[]): ComponentNode[] {
@@ -105,6 +106,71 @@ export function filterNodesForFrame(page: Page, frameId: string, options: FrameN
   return sortedByCanvas(nodes);
 }
 
+function nodeBelongsToFrame(node: ComponentNode, frameId: string): boolean {
+  return node.canvas?.parentFrameId === frameId;
+}
+
+function frameLayerNodes(page: Page, frameId: string): ComponentNode[] {
+  return Object.values(page.nodes).filter((node) => node.id !== page.rootNodeId && nodeBelongsToFrame(node, frameId));
+}
+
+export function sortNodesByZIndex(nodes: ComponentNode[]): ComponentNode[] {
+  return [...nodes].sort((left, right) => {
+    const leftCanvas = canvasFor(left);
+    const rightCanvas = canvasFor(right);
+    return leftCanvas.zIndex - rightCanvas.zIndex || leftCanvas.y - rightCanvas.y || leftCanvas.x - rightCanvas.x || left.id.localeCompare(right.id);
+  });
+}
+
+export function getFrameMaxZIndex(page: Page, frameId: string): number {
+  return Math.max(0, ...frameLayerNodes(page, frameId).map((node) => node.canvas?.zIndex ?? 0));
+}
+
+export function getNextFrameZIndex(page: Page, frameId: string): number {
+  return getFrameMaxZIndex(page, frameId) + 1;
+}
+
+export function bringNodeToFrontByZIndex(page: Page, nodeId: string, frameId: string): LayerZIndexPatch[] {
+  const node = page.nodes[nodeId];
+  if (!node || node.id === page.rootNodeId || !nodeBelongsToFrame(node, frameId)) return [];
+  return [{ nodeId, zIndex: getNextFrameZIndex(page, frameId) }];
+}
+
+export function sendNodeToBackByZIndex(page: Page, nodeId: string, frameId: string): LayerZIndexPatch[] {
+  const node = page.nodes[nodeId];
+  if (!node || node.id === page.rootNodeId || !nodeBelongsToFrame(node, frameId)) return [];
+  const minZ = Math.min(0, ...frameLayerNodes(page, frameId).map((item) => item.canvas?.zIndex ?? 0));
+  return [{ nodeId, zIndex: minZ - 1 }];
+}
+
+function swapAdjacentLayer(page: Page, nodeId: string, frameId: string, direction: 'forward' | 'backward'): LayerZIndexPatch[] {
+  const layers = sortNodesByZIndex(frameLayerNodes(page, frameId));
+  const index = layers.findIndex((node) => node.id === nodeId);
+  const targetIndex = direction === 'forward' ? index + 1 : index - 1;
+  const node = layers[index];
+  const target = layers[targetIndex];
+  if (!node || !target) return [];
+  return [
+    { nodeId: node.id, zIndex: target.canvas?.zIndex ?? 0 },
+    { nodeId: target.id, zIndex: node.canvas?.zIndex ?? 0 },
+  ];
+}
+
+export function moveNodeForwardByZIndex(page: Page, nodeId: string, frameId: string): LayerZIndexPatch[] {
+  return swapAdjacentLayer(page, nodeId, frameId, 'forward');
+}
+
+export function moveNodeBackwardByZIndex(page: Page, nodeId: string, frameId: string): LayerZIndexPatch[] {
+  return swapAdjacentLayer(page, nodeId, frameId, 'backward');
+}
+
+export function reorderLayerStackByZIndex(page: Page, orderedNodeIds: string[], frameId: string): LayerZIndexPatch[] {
+  const validIds = new Set(frameLayerNodes(page, frameId).map((node) => node.id));
+  return orderedNodeIds
+    .filter((nodeId) => validIds.has(nodeId))
+    .map((nodeId, index) => ({ nodeId, zIndex: index + 1 }));
+}
+
 export function cloneNodesWithNewIds(page: Page, nodeIds: string[], options: CloneNodesOptions = {}): CloneNodesResult {
   const subtreeIds = new Set<string>();
   nodeIds.forEach((nodeId) => collectSubtreeIds(page, nodeId, subtreeIds));
@@ -136,11 +202,36 @@ export function cloneNodesWithNewIds(page: Page, nodeIds: string[], options: Clo
     nodes[newId] = cloned;
   }
 
+  if (options.placeAtHighestLayer && options.targetFrameId) {
+    let zIndex = getNextFrameZIndex(page, options.targetFrameId);
+    for (const rootId of resultSubtreeOrder(rootIdsFromMap(nodeIds, idMap), nodes)) {
+      const node = nodes[rootId];
+      if (!node) continue;
+      node.canvas = { ...canvasFor(node), parentFrameId: options.targetFrameId, zIndex };
+      zIndex += 1;
+    }
+  }
+
   return {
     nodes,
     rootIds: nodeIds.map((nodeId) => idMap[nodeId]).filter((nodeId): nodeId is string => Boolean(nodeId)),
     idMap,
   };
+}
+
+function rootIdsFromMap(nodeIds: string[], idMap: Record<string, string>): string[] {
+  return nodeIds.map((nodeId) => idMap[nodeId]).filter((nodeId): nodeId is string => Boolean(nodeId));
+}
+
+function resultSubtreeOrder(rootIds: string[], nodes: Record<string, ComponentNode>): string[] {
+  const ordered: string[] = [];
+  const visit = (nodeId: string) => {
+    if (ordered.includes(nodeId)) return;
+    ordered.push(nodeId);
+    nodes[nodeId]?.children?.forEach(visit);
+  };
+  rootIds.forEach(visit);
+  return ordered;
 }
 
 export function setNodeCanvasLocked(node: ComponentNode, locked: boolean): ComponentNode {

@@ -1,31 +1,20 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { act } from 'react';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import { ComponentLibraryPanel } from '../editor/components/ComponentLibraryPanel';
 
 describe('ComponentLibraryPanel performance behavior', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('debounces search input before changing rendered results', () => {
+  it('debounces search input before changing rendered detail results', async () => {
     render(<ComponentLibraryPanel />);
 
-    const search = screen.getByPlaceholderText(/搜索|鎼滅储/);
+    const search = screen.getByPlaceholderText(/搜索|search/i);
+    const details = screen.getByTestId('component-library-detail-list');
     fireEvent.change(search, { target: { value: 'Table' } });
 
-    expect(screen.queryByText('表格')).toBeInTheDocument();
+    expect(within(details).queryByText('表格')).toBeInTheDocument();
 
-    act(() => {
-      vi.advanceTimersByTime(180);
-    });
-
-    expect(screen.getByText('表格')).toBeInTheDocument();
-    expect(screen.queryAllByText('按钮')).toHaveLength(0);
+    await waitFor(() => expect(within(details).queryAllByText('按钮')).toHaveLength(0));
+    expect(within(details).getByText('表格')).toBeInTheDocument();
   });
 
   it('uses lightweight static previews in component cards', () => {

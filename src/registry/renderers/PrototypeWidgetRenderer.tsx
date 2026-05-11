@@ -37,6 +37,10 @@ function boolProp(value: JsonValue | undefined): boolean {
   return typeof value === 'boolean' ? value : false;
 }
 
+function arrayProp(value: JsonValue | undefined, fallback: string[] = []): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : fallback;
+}
+
 function textStyle(node: ComponentNode): CSSProperties {
   const underline = boolProp(node.props.underline);
   const strikethrough = boolProp(node.props.strikethrough);
@@ -48,7 +52,7 @@ function textStyle(node: ComponentNode): CSSProperties {
     fontSize: numberProp(node.props.fontSize, 14),
     fontWeight: numberProp(node.props.fontWeight, 400),
     color: stringProp(node.props.color, '#111827'),
-    fontFamily: stringProp(node.props.fontFamily, 'Arial, sans-serif'),
+    fontFamily: stringProp(node.props.fontFamily, 'Microsoft YaHei, PingFang SC, sans-serif'),
     lineHeight: numberProp(node.props.lineHeight, 1.4),
     letterSpacing: numberProp(node.props.letterSpacing, 0),
     textAlign: stringProp(node.props.align, 'left') as CSSProperties['textAlign'],
@@ -91,6 +95,97 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
         onClick={() => context.dispatch?.({ componentId: node.id, event: 'click' })}
       >
         {node.type === 'HotZone' ? stringProp(node.props.label, 'Hot zone') : null}
+      </div>
+    );
+  }
+
+  if (node.type === 'VisualBlock' || node.type === 'WhitePanel') {
+    return (
+      <div
+        style={{
+          boxSizing: 'border-box',
+          width: numberProp(node.props.width, 160),
+          height: numberProp(node.props.height, 48),
+          background: stringProp(node.props.fill, '#f1f5f9'),
+          border: stringProp(node.props.border, '1px solid #dbe3ef'),
+          borderRadius: numberProp(node.props.radius, 6),
+          boxShadow: stringProp(node.props.shadow, 'none'),
+        }}
+      />
+    );
+  }
+
+  if (node.type === 'BadgePill') {
+    return (
+      <div
+        style={{
+          boxSizing: 'border-box',
+          display: 'grid',
+          placeItems: 'center',
+          width: numberProp(node.props.width, 88),
+          height: numberProp(node.props.height, 28),
+          color: stringProp(node.props.color, '#1677ff'),
+          background: stringProp(node.props.background, '#e6f4ff'),
+          border: stringProp(node.props.border, '1px solid #91caff'),
+          borderRadius: 999,
+          fontSize: 12,
+          fontWeight: 600,
+        }}
+      >
+        {stringProp(node.props.text, '状态标签')}
+      </div>
+    );
+  }
+
+  if (node.type === 'HeaderBar') {
+    return (
+      <div
+        style={{
+          boxSizing: 'border-box',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: numberProp(node.props.width, 960),
+          height: numberProp(node.props.height, 56),
+          padding: '0 20px',
+          background: stringProp(node.props.fill, '#ffffff'),
+          border: stringProp(node.props.border, '1px solid #e5e7eb'),
+          color: '#111827',
+          fontWeight: 700,
+        }}
+      >
+        <span>{stringProp(node.props.title, '后台系统')}</span>
+        <span style={{ width: 96, height: 24, borderRadius: 12, background: '#f1f5f9' }} />
+      </div>
+    );
+  }
+
+  if (node.type === 'SideNavBlock') {
+    const items = arrayProp(node.props.items, ['首页', '订单管理', '系统设置']);
+    return (
+      <div style={{ boxSizing: 'border-box', width: numberProp(node.props.width, 220), height: numberProp(node.props.height, 360), padding: 12, background: stringProp(node.props.fill, '#ffffff'), border: '1px solid #e5e7eb' }}>
+        <div style={{ marginBottom: 10, color: '#111827', fontWeight: 700 }}>{stringProp(node.props.title, '菜单')}</div>
+        {items.map((item, index) => (
+          <div key={item} style={{ height: 34, padding: '7px 10px', borderRadius: 6, background: index === 0 ? stringProp(node.props.activeColor, '#e6f4ff') : 'transparent', color: index === 0 ? '#1677ff' : '#475569', fontSize: 13 }}>
+            {item}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (node.type === 'TableSkeleton') {
+    const columns = Math.max(1, Math.round(numberProp(node.props.columns, 6)));
+    const rows = Math.max(1, Math.round(numberProp(node.props.rows, 4)));
+    return (
+      <div style={{ boxSizing: 'border-box', display: 'grid', gap: 10, width: numberProp(node.props.width, 760), height: numberProp(node.props.height, 280), padding: 12, border: stringProp(node.props.border, '1px solid #e5e7eb'), borderRadius: 6, background: '#ffffff' }}>
+        {[...Array(rows)].map((_, rowIndex) => (
+          <div key={rowIndex} style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 6 }}>
+            {[...Array(columns)].map((__, colIndex) => (
+              <span key={colIndex} style={{ height: rowIndex === 0 ? 28 : 24, borderRadius: 4, background: rowIndex === 0 ? stringProp(node.props.headerColor, '#dff1fb') : stringProp(node.props.rowColor, '#f1f5f9') }} />
+            ))}
+          </div>
+        ))}
       </div>
     );
   }

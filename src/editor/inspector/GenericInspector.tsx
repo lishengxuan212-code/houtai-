@@ -52,14 +52,14 @@ export function GenericInspector({ node, descriptor, updateProps }: InspectorPro
           ))}
         </Form>
       ) : (
-        <Typography.Text type="secondary">No visual properties for this component.</Typography.Text>
+        <Typography.Text type="secondary">当前组件没有可视化属性。</Typography.Text>
       )}
       <Collapse
         size="small"
         items={[
           {
             key: 'debug',
-            label: 'Advanced / Debug',
+            label: '高级 / 调试',
             children: <AdvancedJsonEditor key={JSON.stringify(node.props)} value={node.props} onApply={updateProps} />,
           },
         ]}

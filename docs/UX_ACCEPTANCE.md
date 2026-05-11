@@ -6,6 +6,8 @@ The product is a Canvas-first Backoffice Prototype Editor.
 
 Users should feel that they are arranging a backoffice prototype on an Axure-like canvas, not configuring a visible data model.
 
+Active phase: `V1.1-S4-canvas-actions-layer-template-workflow`.
+
 ## S4 Workflow Acceptance
 
 - Holding Space changes the canvas to pan mode; left-drag pans the viewport without selecting or moving components.

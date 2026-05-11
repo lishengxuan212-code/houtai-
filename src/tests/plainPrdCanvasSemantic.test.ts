@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../domain/types';
 import { exportPlainPrd } from '../export/plainPrd';
+import { createTemplateFromSelection, insertTemplateIntoPage } from '../templates/templateOperations';
 
 function canvasSemanticProject(): Project {
   return {
@@ -166,5 +167,139 @@ describe('canvas semantic plain PRD export', () => {
     expect(prd).not.toContain('不应导出');
     expect(prd).not.toMatch(/\b(x|y|width|height|zIndex)\b/i);
     expect(prd).not.toMatch(/\b100\b|\b200\b|\b1440\b|\b900\b/);
+  });
+
+  it('uses group semantic name as module name and keeps grouped children inside that module', () => {
+    const project = canvasSemanticProject();
+    const page = project.pages[0]!;
+    page.nodes.root!.children = [...(page.nodes.root!.children ?? []), 'approval_group'];
+    page.nodes.approval_group = {
+      id: 'approval_group',
+      type: 'Section',
+      name: '默认分组名称',
+      props: { title: '审批处理' },
+      semantic: { moduleName: '客户审批处理', moduleType: '业务模块', description: '用于集中处理客户审批动作。' },
+      children: ['approval_table', 'approval_button'],
+      canvas: { x: 132, y: 620, width: 900, height: 260, zIndex: 20, parentFrameId: 'frame_main' },
+    };
+    page.nodes.approval_table = {
+      id: 'approval_table',
+      type: 'Table',
+      name: '审批列表',
+      props: { columns: [{ key: 'customerName', title: '客户名称' }], actions: ['查看'] },
+      canvas: { x: 152, y: 680, width: 620, height: 160, zIndex: 21, parentFrameId: 'frame_main' },
+    };
+    page.nodes.approval_button = {
+      id: 'approval_button',
+      type: 'Button',
+      name: '通过按钮',
+      props: { text: '通过审批' },
+      canvas: { x: 792, y: 680, width: 120, height: 32, zIndex: 22, parentFrameId: 'frame_main' },
+    };
+
+    const prd = exportPlainPrd(project);
+
+    expect(prd).toContain('客户审批处理');
+    expect(prd).toContain('类型：业务模块');
+    expect(prd).toContain('用于集中处理客户审批动作。');
+    expect(prd).toContain('客户名称');
+    expect(prd).toContain('通过审批');
+    expect(prd).not.toContain('模块十：审批列表');
+    expect(prd).not.toMatch(/\b(zIndex|x|y|width|height)\b/i);
+  });
+
+  it('describes template-created group modules and state changes in business language', () => {
+    const project = canvasSemanticProject();
+    const page = project.pages[0]!;
+    page.nodes.root!.children = ['template_group'];
+    page.nodes = {
+      root: page.nodes.root!,
+      template_group: {
+        id: 'template_group',
+        type: 'Section',
+        name: '模板原始分组',
+        props: { title: '模板原始分组' },
+        semantic: { moduleName: '退款审核模块', moduleType: '业务模块', description: '用于审核客户退款申请。' },
+        children: ['template_table', 'template_button'],
+        canvas: { x: 120, y: 260, width: 800, height: 260, zIndex: 2, parentFrameId: 'frame_main' },
+      },
+      template_table: {
+        id: 'template_table',
+        type: 'Table',
+        name: '退款审核列表',
+        props: { columns: [{ key: 'refundNo', title: '退款单号' }], actions: ['审核'] },
+        canvas: { x: 150, y: 320, width: 560, height: 160, zIndex: 3, parentFrameId: 'frame_main' },
+      },
+      template_button: {
+        id: 'template_button',
+        type: 'Button',
+        name: '审核按钮',
+        props: { text: '通过审核' },
+        canvas: { x: 740, y: 320, width: 120, height: 32, zIndex: 4, parentFrameId: 'frame_main' },
+      },
+    };
+    project.interactions = [
+      {
+        id: 'interaction_state_change',
+        name: '审核后更新页面状态',
+        trigger: { componentId: 'template_button', event: 'click' },
+        actions: [
+          { type: 'hideNode', targetNodeId: 'template_table' },
+          { type: 'disableNode', targetNodeId: 'template_button' },
+          { type: 'showMessage', level: 'success', message: '审核已提交' },
+        ],
+        enabled: true,
+      },
+    ];
+
+    const template = createTemplateFromSelection(project, page.id, 'template_group', {
+      name: '退款审核模板',
+      type: 'group',
+      category: '退款',
+      includeProps: true,
+      includeContent: true,
+      includeData: true,
+      includeInternalInteractions: true,
+      includeExternalReferences: false,
+    });
+    const next = insertTemplateIntoPage(project, page.id, page.rootNodeId, template, 'frame_main');
+    const prd = exportPlainPrd(next);
+
+    expect(prd.match(/退款审核模块/g)?.length).toBe(2);
+    expect(prd).toContain('退款单号');
+    expect(prd).toContain('通过审核');
+    expect(prd).toContain('隐藏“退款审核列表”。');
+    expect(prd).toContain('暂时禁止用户操作“审核按钮”。');
+    expect(prd).toContain('显示“审核已提交”提示。');
+    expect(prd).not.toMatch(/\b(zIndex|x|y|width|height)\b/i);
+  });
+
+  it('does not export children of hidden groups', () => {
+    const project = canvasSemanticProject();
+    const page = project.pages[0]!;
+    page.nodes.root!.children = ['hidden_group'];
+    page.nodes = {
+      root: page.nodes.root!,
+      hidden_group: {
+        id: 'hidden_group',
+        type: 'Section',
+        name: '隐藏分组',
+        props: { title: '隐藏分组' },
+        children: ['hidden_button'],
+        canvas: { x: 120, y: 260, width: 400, height: 160, zIndex: 2, parentFrameId: 'frame_main', hidden: true },
+      },
+      hidden_button: {
+        id: 'hidden_button',
+        type: 'Button',
+        name: '隐藏按钮',
+        props: { text: '不应出现在 PRD' },
+        canvas: { x: 140, y: 300, width: 160, height: 40, zIndex: 3, parentFrameId: 'frame_main' },
+      },
+    };
+
+    const prd = exportPlainPrd(project);
+
+    expect(prd).not.toContain('隐藏分组');
+    expect(prd).not.toContain('不应出现在 PRD');
   });
 });

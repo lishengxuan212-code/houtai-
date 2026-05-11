@@ -1,5 +1,15 @@
 import type { Operation, Page, Project } from './types';
-import { alignNodesByCanvas, assignNodeToFrame, cloneNodesWithNewIds, createPageFrame, distributeNodesByCanvas, ensureNodeCanvas, setNodeCanvasHidden, setNodeCanvasLocked } from './canvas';
+import {
+  alignNodesByCanvas,
+  assignNodeToFrame,
+  cloneNodesWithNewIds,
+  createPageFrame,
+  distributeNodesByCanvas,
+  ensureNodeCanvas,
+  reorderLayerStackByZIndex,
+  setNodeCanvasHidden,
+  setNodeCanvasLocked,
+} from './canvas';
 import { normalizeContainerLayout } from './layout';
 import { findParentNode, getPage } from './selectors';
 
@@ -23,7 +33,28 @@ function isDescendant(page: Page, ancestorId: string, nodeId: string): boolean {
 }
 
 function actionReferencesDeleted(action: Project['interactions'][number]['actions'][number], deletedIds: Set<string>): boolean {
-  if ((action.type === 'openModal' || action.type === 'closeModal' || action.type === 'resetForm') && deletedIds.has(action.targetNodeId)) return true;
+  if (
+    (
+      action.type === 'openModal' ||
+      action.type === 'closeModal' ||
+      action.type === 'openDrawer' ||
+      action.type === 'closeDrawer' ||
+      action.type === 'showNode' ||
+      action.type === 'hideNode' ||
+      action.type === 'toggleNodeVisibility' ||
+      action.type === 'enableNode' ||
+      action.type === 'disableNode' ||
+      action.type === 'toggleNodeDisabled' ||
+      action.type === 'setNodeProp' ||
+      action.type === 'setFormValue' ||
+      action.type === 'resetForm' ||
+      action.type === 'selectTab' ||
+      action.type === 'scrollToNode'
+    ) &&
+    deletedIds.has(action.targetNodeId)
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -76,6 +107,12 @@ export function applyOperation(project: Project, operation: Operation): Project 
       node.semantic = { ...node.semantic, ...operation.semantic };
       return draft;
     }
+    case 'updateNodeRuntime': {
+      const node = getPage(draft, operation.pageId)?.nodes[operation.nodeId];
+      if (!node) return draft;
+      node.runtime = { ...node.runtime, ...operation.runtime };
+      return draft;
+    }
     case 'cloneNodes': {
       const page = getPage(draft, operation.pageId);
       const parent = page?.nodes[operation.parentNodeId];
@@ -83,10 +120,23 @@ export function applyOperation(project: Project, operation: Operation): Project 
       const cloneOptions = {
         ...(operation.offset ? { offset: operation.offset } : {}),
         ...(operation.targetFrameId ? { targetFrameId: operation.targetFrameId } : {}),
+        ...(operation.placeAtHighestLayer !== undefined ? { placeAtHighestLayer: operation.placeAtHighestLayer } : {}),
       };
       const result = cloneNodesWithNewIds(page, operation.nodeIds, cloneOptions);
       page.nodes = { ...page.nodes, ...result.nodes };
       parent.children = [...parent.children, ...result.rootIds];
+      return draft;
+    }
+    case 'updateNodeLayerOrder': {
+      const page = getPage(draft, operation.pageId);
+      if (!page) return draft;
+      for (const patch of reorderLayerStackByZIndex(page, operation.orderedNodeIds, operation.frameId)) {
+        const node = page.nodes[patch.nodeId];
+        if (!node) continue;
+        const canvas = ensureNodeCanvas(node).canvas;
+        if (!canvas) continue;
+        node.canvas = { ...canvas, zIndex: patch.zIndex, parentFrameId: operation.frameId };
+      }
       return draft;
     }
     case 'groupNodes': {
@@ -130,10 +180,13 @@ export function applyOperation(project: Project, operation: Operation): Project 
       return draft;
     }
     case 'updateNodeCanvas': {
-      const node = getPage(draft, operation.pageId)?.nodes[operation.nodeId];
-      if (!node) return draft;
+      const page = getPage(draft, operation.pageId);
+      const node = page?.nodes[operation.nodeId];
+      if (!page || !node) return draft;
       const current = ensureNodeCanvas(node).canvas;
       if (!current) return draft;
+      const deltaX = operation.canvas.x !== undefined ? operation.canvas.x - current.x : 0;
+      const deltaY = operation.canvas.y !== undefined ? operation.canvas.y - current.y : 0;
       const locked = operation.canvas.locked ?? current.locked;
       const hidden = operation.canvas.hidden ?? current.hidden;
       const rotation = operation.canvas.rotation ?? current.rotation;
@@ -149,6 +202,15 @@ export function applyOperation(project: Project, operation: Operation): Project 
         ...(rotation !== undefined ? { rotation } : {}),
         ...(parentFrameId !== undefined ? { parentFrameId } : {}),
       };
+      if ((deltaX !== 0 || deltaY !== 0) && node.children?.length) {
+        const descendantIds = new Set<string>();
+        node.children.forEach((childId) => collectSubtreeIds(page, childId, descendantIds));
+        descendantIds.forEach((childId) => {
+          const child = page.nodes[childId];
+          if (!child?.canvas) return;
+          child.canvas = { ...child.canvas, x: child.canvas.x + deltaX, y: child.canvas.y + deltaY };
+        });
+      }
       return draft;
     }
     case 'assignNodeToFrame': {

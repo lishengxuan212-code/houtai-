@@ -2,7 +2,7 @@
 
 Active phase: `V1.1-S4-canvas-actions-layer-template-workflow`
 
-Status: active, planning complete and baseline checks pending.
+Status: completed, S4 implementation and required gates passed.
 
 Product target: Canvas-first Backoffice Prototype Editor.
 
@@ -32,11 +32,51 @@ Goal: complete Axure-style canvas operation logic, layer management, template sa
 
 ## Required Gates
 
-UX_WORKFLOW_GATE_RESULT: pending
+UX_WORKFLOW_GATE_RESULT: PASS
 
-QA_GATE_RESULT: pending
+QA_GATE_RESULT: PASS
 
-ARCHITECTURE_GATE_RESULT: pending
+ARCHITECTURE_GATE_RESULT: PASS
+
+## Current Execution Step
+
+- Active phase confirmed as `V1.1-S4-canvas-actions-layer-template-workflow`.
+- Baseline checks passed before S4 feature development started.
+- S4 implementation is complete.
+- QA, UX Workflow, and Architecture gates passed after final integration fixes.
+
+## S4 Baseline Verification
+
+- `pnpm typecheck`: PASS
+- `pnpm test -- --reporter=verbose`: PASS, 50 files / 141 tests
+- `pnpm build`: PASS, with existing Vite large chunk warning
+- `pnpm lint`: PASS
+
+## S4 Final Verification
+
+- `pnpm typecheck`: PASS
+- `pnpm test`: PASS, 53 files / 188 tests
+- `pnpm build`: PASS, with existing Vite large chunk warning
+- `pnpm lint`: PASS
+- QA Gate: PASS
+- UX Workflow Gate: PASS
+- Architecture Gate: PASS
+
+## S4 Completion Notes
+
+- Canvas panning and shortcuts are viewport/editor state only.
+- Layer management uses serializable `canvas.zIndex` and renders editor/preview by zIndex.
+- Runtime visibility and disabled state are separate from editor layer hiding.
+- Interaction authoring now exposes show/hide/toggle visibility and enable/disable/toggle disabled through the normal interaction panel.
+- Templates save, persist, insert with id remapping, preserve internal references, and are committed through undoable project history.
+- Recent Used is stored separately from Project JSON and covers system, Pro, prototype, preset, template, and user-created assets.
+- PRD export describes groups, template-generated modules, and visibility/enablement interactions in business language without coordinates or zIndex.
+
+## Non-blocking Follow-ups
+
+- `ARCHITECTURE.md` should be refreshed for S4 runtime actions, template workflow, and Recent Used storage.
+- Current UI-facing PRD export is plain-language, but legacy technical PRD export still exists for internal/debug use.
+- Vite build still reports the existing large main chunk warning.
 
 ## Hard Non-goals
 

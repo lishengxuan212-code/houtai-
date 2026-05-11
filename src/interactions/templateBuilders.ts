@@ -8,7 +8,13 @@ export type InteractionTemplateId =
   | 'formSubmit'
   | 'searchRefreshTable'
   | 'deleteWithConfirm'
-  | 'showMessage';
+  | 'showMessage'
+  | 'showNode'
+  | 'hideNode'
+  | 'toggleNodeVisibility'
+  | 'enableNode'
+  | 'disableNode'
+  | 'toggleNodeDisabled';
 
 export type InteractionTemplateInput = {
   templateId: InteractionTemplateId;
@@ -112,6 +118,39 @@ export function buildInteractionTemplate(project: Project, input: InteractionTem
           ]),
         ],
       };
+    case 'showNode':
+    case 'hideNode':
+    case 'toggleNodeVisibility':
+    case 'enableNode':
+    case 'disableNode':
+    case 'toggleNodeDisabled': {
+      if (!nodeExists(project, input.targetNodeId)) errors.push('目标组件不存在');
+      if (errors.length > 0) return { interactions: [], errors };
+      const actionTypeByTemplate = {
+        showNode: 'showNode',
+        hideNode: 'hideNode',
+        toggleNodeVisibility: 'toggleNodeVisibility',
+        enableNode: 'enableNode',
+        disableNode: 'disableNode',
+        toggleNodeDisabled: 'toggleNodeDisabled',
+      } as const;
+      const nameByTemplate = {
+        showNode: '显示组件',
+        hideNode: '隐藏组件',
+        toggleNodeVisibility: '切换组件显示',
+        enableNode: '启用组件',
+        disableNode: '禁用组件',
+        toggleNodeDisabled: '切换组件启用',
+      } as const;
+      return {
+        errors,
+        interactions: [
+          interaction(nameByTemplate[input.templateId], input.triggerComponentId, 'click', [
+            { type: actionTypeByTemplate[input.templateId], targetNodeId: input.targetNodeId! },
+          ]),
+        ],
+      };
+    }
     case 'deleteWithConfirm': {
       if (!dataSourceExists(project, input.dataSourceId)) errors.push('数据源不存在');
       if (!nodeExists(project, input.targetNodeId)) errors.push('目标组件不存在');

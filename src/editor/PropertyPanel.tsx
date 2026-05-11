@@ -4,6 +4,7 @@ import { getComponentDefinition } from '../registry/componentDefinitionRegistry'
 import { getDescriptor } from '../registry/componentRegistry';
 import { useProjectStore } from '../store/projectStore';
 import { GeneratedInspector } from './inspector/GeneratedInspector';
+import { InspectorStatePanel } from './inspector/InspectorStatePanel';
 import { renderInspector } from './inspector/inspectorRegistry';
 
 export function PropertyPanel() {
@@ -19,13 +20,14 @@ export function PropertyPanel() {
   const definition = node ? getComponentDefinition(node.type) : undefined;
   const descriptor = node ? getDescriptor(node.type) : undefined;
 
-  if (!node || (!descriptor && !definition)) return <Typography.Text type="secondary">请选择组件。</Typography.Text>;
+  if (!page || !node || (!descriptor && !definition)) return <Typography.Text type="secondary">请选择组件。</Typography.Text>;
 
   return (
     <div className="inspector-stack">
       <Typography.Text strong className="inspector-title">
         {node.name} / {componentLabel(node.type)}
       </Typography.Text>
+      <InspectorStatePanel pageId={page.id} node={node} />
       {definition ? (
         <GeneratedInspector
           node={node}

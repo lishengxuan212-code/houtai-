@@ -1,4 +1,5 @@
 product_target: Canvas-first Backoffice Prototype Editor
+active_phase: V1.1-S4-canvas-actions-layer-template-workflow
 
 phases:
   - id: V1.1-S1-product-workbench-foundation
@@ -225,7 +226,7 @@ phases:
   - id: V1.1-S4-canvas-actions-layer-template-workflow
     title: Canvas Actions, Layering, Template Workflow and Interaction Behaviors
     priority: 96
-    status: active
+    status: completed
     goal: >
       Complete Axure-style canvas operation logic, layer management, template
       save/reuse, recent assets, and runtime show/hide/enable/disable

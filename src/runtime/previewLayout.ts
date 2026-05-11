@@ -8,11 +8,7 @@ export function selectPreviewFrame(page: Page, activeFrameId?: string): PageFram
 }
 
 export function getPreviewFrameNodes(page: Page, frameId: string): ComponentNode[] {
-  return filterNodesForFrame(page, frameId);
-}
-
-export function isRuntimeNodeHidden(node: ComponentNode): boolean {
-  return node.canvas?.hidden === true;
+  return filterNodesForFrame(page, frameId, { includeHidden: true });
 }
 
 export function getCanvasNodeStyle(node: ComponentNode): CSSProperties {

@@ -1,10 +1,17 @@
 import { Button, Form, Input, InputNumber, Select, Space } from 'antd';
+import { useEffect } from 'react';
 import type { FieldConfig } from '../../domain/types';
 import type { NodeRendererProps } from './rendererTypes';
 import { asArray, asString } from './primitive';
 
 export function FormRenderer({ node, context }: NodeRendererProps) {
   const [form] = Form.useForm();
+  const runtimeValues = context.getFormValues?.(node.id);
+  useEffect(() => {
+    if (context.mode !== 'preview' || !runtimeValues) return;
+    form.setFieldsValue(runtimeValues);
+    if (Object.keys(runtimeValues).length === 0) form.resetFields();
+  }, [context.mode, form, runtimeValues]);
   const fields = asArray<FieldConfig>(node.content?.fields ?? node.props.fields, []);
   if (context.mode === 'edit') {
     return (

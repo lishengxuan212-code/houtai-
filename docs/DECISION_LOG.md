@@ -50,10 +50,13 @@
 ## V1.1-S4
 
 - Enter canvas actions, layering, template workflow, and interaction behavior work after S3 hot-path hardening.
+- Confirm active phase as `V1.1-S4-canvas-actions-layer-template-workflow` before implementation and require a clean baseline before feature work.
 - Do not expand component count in S4; improve continuous editor workflows instead.
 - Treat Space pan, layer management, template reuse, Recent Used, and runtime show/hide/enable/disable as the phase-critical product loop.
 - Separate editor visibility from runtime initial visibility and runtime interaction state.
 - Store template assets and recent assets independently from project instance data.
 - Require template insertion to remap ids and preserve internal references.
+- Commit template insertion through history-preserving project commits so template reuse can be undone.
+- Use a realistic Vitest timeout for Ant Design/jsdom integration tests because S4 UI tests now cover heavier workflows.
 - Keep interaction behaviors declarative and forbid arbitrary JavaScript.
 - Keep PRD output business-facing and exclude coordinates, zIndex, and internal implementation terms.

@@ -229,13 +229,44 @@ function collectDetailBlocks(page: Page, node: ComponentNode): DetailBlock[] {
   return mergeBlocks([detailBlocksForNode(node), ...childNodes(page, node).flatMap((child) => detailBlocksForNode(child))].flat());
 }
 
+function findNode(project: Project, nodeId: string): ComponentNode | undefined {
+  for (const page of project.pages) {
+    const node = page.nodes[nodeId];
+    if (node) return node;
+  }
+  return undefined;
+}
+
+function targetName(project: Project, nodeId: string): string {
+  const node = findNode(project, nodeId);
+  return node ? readableNodeName(node) : '对应内容';
+}
+
 function actionText(project: Project, action: Action): string {
   switch (action.type) {
     case 'openModal':
-      return '打开对应弹窗或抽屉。';
+    case 'openDrawer':
+      return `打开“${targetName(project, action.targetNodeId)}”。`;
     case 'closeModal':
-      return '关闭当前弹窗或抽屉。';
+    case 'closeDrawer':
+      return `关闭“${targetName(project, action.targetNodeId)}”。`;
+    case 'showNode':
+      return `显示“${targetName(project, action.targetNodeId)}”。`;
+    case 'hideNode':
+      return `隐藏“${targetName(project, action.targetNodeId)}”。`;
+    case 'toggleNodeVisibility':
+      return `根据当前状态显示或隐藏“${targetName(project, action.targetNodeId)}”。`;
+    case 'enableNode':
+      return `允许用户操作“${targetName(project, action.targetNodeId)}”。`;
+    case 'disableNode':
+      return `暂时禁止用户操作“${targetName(project, action.targetNodeId)}”。`;
+    case 'toggleNodeDisabled':
+      return `根据当前状态允许或禁止用户操作“${targetName(project, action.targetNodeId)}”。`;
     case 'navigate': {
+      const page = project.pages.find((item) => item.id === action.targetPageId);
+      return `进入${page?.name ?? '目标页面'}。`;
+    }
+    case 'navigateToPage': {
       const page = project.pages.find((item) => item.id === action.targetPageId);
       return `进入${page?.name ?? '目标页面'}。`;
     }
@@ -245,13 +276,22 @@ function actionText(project: Project, action: Action): string {
       return '刷新页面显示内容。';
     case 'showMessage':
       return `显示“${action.message}”提示。`;
+    case 'setNodeProp':
+      return `更新“${targetName(project, action.targetNodeId)}”的显示内容。`;
+    case 'setFormValue':
+      return `回填“${targetName(project, action.targetNodeId)}”中的${action.field}。`;
     case 'resetForm':
-      return '清空表单内容。';
+      return `清空“${targetName(project, action.targetNodeId)}”的表单内容。`;
+    case 'selectTab':
+      return `切换“${targetName(project, action.targetNodeId)}”中的标签页。`;
+    case 'scrollToNode':
+      return `定位到“${targetName(project, action.targetNodeId)}”。`;
     case 'submitMock':
       if (action.operation === 'delete') return '确认后删除当前记录，并刷新列表。';
       if (action.operation === 'update') return '保存修改内容，并刷新列表。';
       return '提交表单内容，保存成功后刷新列表。';
   }
+  return '执行页面交互。';
 }
 
 function interactionsForNode(interactions: Interaction[], node: ComponentNode): Interaction[] {
@@ -302,12 +342,23 @@ function isInsideFrame(node: ComponentNode, frame: PageFrame): boolean {
 
 function nodesForFrame(page: Page, frame?: PageFrame): ComponentNode[] {
   const allNodes = walkPageNodes(page).filter((node) => node.id !== page.rootNodeId && !node.meta?.hiddenInEditor && !node.canvas?.hidden);
-  if (!frame) return allNodes;
-  const direct = new Set(allNodes.filter((node) => isInsideFrame(node, frame)).map((node) => node.id));
+  const hiddenParentIds = new Set(walkPageNodes(page).filter((node) => node.meta?.hiddenInEditor || node.canvas?.hidden).map((node) => node.id));
+  const parents = parentByNodeId(page);
+  const isHiddenByParent = (node: ComponentNode): boolean => {
+    let parentId = parents.get(node.id);
+    while (parentId) {
+      if (hiddenParentIds.has(parentId)) return true;
+      parentId = parents.get(parentId);
+    }
+    return false;
+  };
+  const visibleNodes = allNodes.filter((node) => !isHiddenByParent(node));
+  if (!frame) return visibleNodes;
+  const direct = new Set(visibleNodes.filter((node) => isInsideFrame(node, frame)).map((node) => node.id));
   let changed = true;
   while (changed) {
     changed = false;
-    for (const node of allNodes) {
+    for (const node of visibleNodes) {
       if (direct.has(node.id) && node.children) {
         for (const childId of node.children) {
           if (!direct.has(childId) && page.nodes[childId]) {
@@ -318,7 +369,7 @@ function nodesForFrame(page: Page, frame?: PageFrame): ComponentNode[] {
       }
     }
   }
-  return allNodes.filter((node) => direct.has(node.id));
+  return visibleNodes.filter((node) => direct.has(node.id));
 }
 
 function canvasOrder(node: ComponentNode, fallback: number): number {

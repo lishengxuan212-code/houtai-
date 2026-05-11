@@ -35,7 +35,26 @@ function scanCondition(condition: Condition, sourceId: string, graph: Dependency
 }
 
 function scanAction(action: Action, sourceId: string, graph: DependencyGraph) {
-  if ((action.type === 'openModal' || action.type === 'closeModal' || action.type === 'resetForm') && !graph.nodeIds.has(action.targetNodeId)) {
+  if (
+    (
+      action.type === 'openModal' ||
+      action.type === 'closeModal' ||
+      action.type === 'openDrawer' ||
+      action.type === 'closeDrawer' ||
+      action.type === 'showNode' ||
+      action.type === 'hideNode' ||
+      action.type === 'toggleNodeVisibility' ||
+      action.type === 'enableNode' ||
+      action.type === 'disableNode' ||
+      action.type === 'toggleNodeDisabled' ||
+      action.type === 'setNodeProp' ||
+      action.type === 'setFormValue' ||
+      action.type === 'resetForm' ||
+      action.type === 'selectTab' ||
+      action.type === 'scrollToNode'
+    ) &&
+    !graph.nodeIds.has(action.targetNodeId)
+  ) {
     graph.issues.push({
       id: `missing_node_${sourceId}_${action.targetNodeId}`,
       type: 'missingNode',
@@ -44,7 +63,7 @@ function scanAction(action: Action, sourceId: string, graph: DependencyGraph) {
       message: `Interaction ${sourceId} references missing node ${action.targetNodeId}.`,
     });
   }
-  if (action.type === 'navigate' && !graph.pageIds.has(action.targetPageId)) {
+  if ((action.type === 'navigate' || action.type === 'navigateToPage') && !graph.pageIds.has(action.targetPageId)) {
     graph.issues.push({
       id: `missing_page_${sourceId}_${action.targetPageId}`,
       type: 'missingPage',
@@ -72,6 +91,9 @@ function scanAction(action: Action, sourceId: string, graph: DependencyGraph) {
         message: `Interaction ${sourceId} writes missing variable ${action.variableId}.`,
       });
     }
+    addValueRefIssue(action.value, sourceId, graph);
+  }
+  if (action.type === 'setNodeProp' || action.type === 'setFormValue') {
     addValueRefIssue(action.value, sourceId, graph);
   }
 }

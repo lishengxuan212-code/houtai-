@@ -12,7 +12,7 @@ export function AdvancedJsonEditor({ value, onApply }: { value: JsonRecord; onAp
 
   return (
     <Space direction="vertical" size={8} style={{ width: '100%' }}>
-      <Typography.Text type="secondary">Advanced / Debug JSON</Typography.Text>
+      <Typography.Text type="secondary">高级 / 调试 JSON</Typography.Text>
       <Input.TextArea rows={8} value={text} onChange={(event) => setText(event.target.value)} />
       {error ? <Alert type="error" message={error} showIcon /> : null}
       <Button
@@ -20,17 +20,17 @@ export function AdvancedJsonEditor({ value, onApply }: { value: JsonRecord; onAp
           try {
             const parsed: unknown = JSON.parse(text);
             if (!isJsonRecord(parsed)) {
-              setError('JSON must be an object.');
+              setError('JSON 必须是对象。');
               return;
             }
             setError(undefined);
             onApply(parsed);
           } catch (caught) {
-            setError(caught instanceof Error ? caught.message : 'Invalid JSON.');
+          setError(caught instanceof Error ? caught.message : '无效 JSON。');
           }
         }}
       >
-        Apply JSON
+        应用 JSON
       </Button>
     </Space>
   );

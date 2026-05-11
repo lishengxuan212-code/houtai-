@@ -14,7 +14,7 @@ describe('GeneratedInspector', () => {
     fireEvent.change(screen.getByDisplayValue('按钮'), { target: { value: '确认' } });
 
     expect(updateProps).toHaveBeenCalledWith({ text: '确认', variant: 'primary', danger: false });
-    expect(screen.queryByText('Advanced / Debug')).toBeInTheDocument();
+    expect(screen.queryByText('高级 / 调试')).toBeInTheDocument();
   });
 
   it('reuses table column editor for ProTable columns', () => {

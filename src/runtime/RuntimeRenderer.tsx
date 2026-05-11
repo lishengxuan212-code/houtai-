@@ -1,21 +1,31 @@
 import { Alert, Space } from 'antd';
+import { useEffect, useRef } from 'react';
+import { sortNodesByZIndex } from '../domain/canvas';
 import type { ComponentNode, Page, Project } from '../domain/types';
 import { RenderNode } from '../registry/renderers';
 import type { RendererContext } from '../registry/renderers/rendererTypes';
-import { getCanvasNodeStyle, getPreviewFrameNodes, getPreviewFrameStyle, isRuntimeNodeHidden, selectPreviewFrame } from './previewLayout';
+import { getCanvasNodeStyle, getPreviewFrameNodes, getPreviewFrameStyle, selectPreviewFrame } from './previewLayout';
 import { useRuntime } from './runtimeContext';
 
 function RuntimeNode({ page, node, context }: { page: Page; node: ComponentNode; context: RendererContext }) {
-  if (isRuntimeNodeHidden(node)) return null;
+  const ref = useRef<HTMLDivElement>(null);
+  const scrollRequest = context.getLatestScrollRequest?.(node.id);
+  useEffect(() => {
+    if (scrollRequest) ref.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [scrollRequest]);
+  if (!context.isNodeVisible?.(node.id)) return null;
+  const runtimeProps = context.getNodeProps?.(node.id);
+  const runtimeNode = runtimeProps && Object.keys(runtimeProps).length > 0 ? { ...node, props: { ...node.props, ...runtimeProps } } : node;
 
-  const children = node.children?.map((childId) => {
-    const child = page.nodes[childId];
-    return child ? <RuntimeNode key={child.id} page={page} node={child} context={context} /> : null;
-  });
+  const children = sortNodesByZIndex(runtimeNode.children?.map((childId) => page.nodes[childId]).filter((child): child is ComponentNode => child !== undefined) ?? []).map((child) => (
+    <RuntimeNode key={child.id} page={page} node={child} context={context} />
+  ));
   return (
-    <RenderNode node={node} context={context}>
-      {children}
-    </RenderNode>
+    <div ref={ref}>
+      <RenderNode node={runtimeNode} context={context}>
+        {children}
+      </RenderNode>
+    </div>
   );
 }
 
@@ -53,6 +63,12 @@ export function RuntimeRenderer({ project, activeFrameId }: { project: Project; 
     dispatch: runtime.dispatch,
     getData: runtime.getData,
     isNodeOpen: runtime.isNodeOpen,
+    isNodeDisabled: runtime.isNodeDisabled,
+    isNodeVisible: runtime.isNodeVisible,
+    getNodeProps: runtime.getNodeProps,
+    getFormValues: runtime.getFormValues,
+    getActiveTab: runtime.getActiveTab,
+    getLatestScrollRequest: runtime.getLatestScrollRequest,
   };
 
   return (

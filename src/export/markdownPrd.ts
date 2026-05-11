@@ -9,6 +9,18 @@ function actionText(action: Action): string {
       return `打开节点 ${action.targetNodeId}`;
     case 'closeModal':
       return `关闭节点 ${action.targetNodeId}`;
+    case 'showNode':
+      return `显示组件 ${action.targetNodeId}`;
+    case 'hideNode':
+      return `隐藏组件 ${action.targetNodeId}`;
+    case 'toggleNodeVisibility':
+      return `切换组件显示状态 ${action.targetNodeId}`;
+    case 'enableNode':
+      return `启用组件 ${action.targetNodeId}`;
+    case 'disableNode':
+      return `禁用组件 ${action.targetNodeId}`;
+    case 'toggleNodeDisabled':
+      return `切换组件启用状态 ${action.targetNodeId}`;
     case 'navigate':
       return `跳转页面 ${action.targetPageId}`;
     case 'setVariable':
@@ -22,6 +34,7 @@ function actionText(action: Action): string {
     case 'submitMock':
       return `提交 mock 数据到 ${action.dataSourceId}`;
   }
+  return '执行交互动作';
 }
 
 function nodeLine(node: ComponentNode, depth: number): string {

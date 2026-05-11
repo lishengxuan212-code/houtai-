@@ -40,4 +40,23 @@ describe('interaction template builders', () => {
     expect(result.interactions).toEqual([]);
     expect(result.errors).toContain('目标组件不存在');
   });
+  it('builds visibility and enablement action templates', () => {
+    const show = buildInteractionTemplate(initialProject, {
+      templateId: 'showNode',
+      triggerComponentId: 'button_add_order',
+      targetNodeId: 'node_add_order_modal',
+    });
+    const disable = buildInteractionTemplate(initialProject, {
+      templateId: 'disableNode',
+      triggerComponentId: 'button_add_order',
+      targetNodeId: 'node_add_order_modal',
+    });
+
+    expect(show.errors).toEqual([]);
+    expect(show.interactions[0]?.actions).toEqual([{ type: 'showNode', targetNodeId: 'node_add_order_modal' }]);
+    expect(disable.errors).toEqual([]);
+    expect(disable.interactions[0]?.actions).toEqual([{ type: 'disableNode', targetNodeId: 'node_add_order_modal' }]);
+    expect(InteractionSchema.safeParse(show.interactions[0]).success).toBe(true);
+    expect(InteractionSchema.safeParse(disable.interactions[0]).success).toBe(true);
+  });
 });

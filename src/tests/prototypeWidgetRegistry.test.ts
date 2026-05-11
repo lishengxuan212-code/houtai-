@@ -28,6 +28,12 @@ const prototypeWidgetTypes = [
   'AmountText',
   'NumericText',
   'TimeText',
+  'VisualBlock',
+  'WhitePanel',
+  'BadgePill',
+  'HeaderBar',
+  'SideNavBlock',
+  'TableSkeleton',
 ];
 
 describe('prototype widget registry', () => {
@@ -72,12 +78,25 @@ describe('prototype widget registry', () => {
   });
 
   it('uses clear preview labels for component cards and metadata', () => {
-    expect(getDescriptor('H1')?.displayName).toBe('H1');
-    expect(getDescriptor('BodyText')?.displayName).toBe('body text');
-    expect(getDescriptor('HelperText')?.displayName).toBe('helper text');
-    expect(getDescriptor('LinkText')?.displayName).toBe('link text');
-    expect(getDescriptor('ErrorText')?.displayName).toBe('error text');
-    expect(getDescriptor('StatusLabel')?.displayName).toBe('status text');
-    expect(getDescriptor('AmountText')?.displayName).toBe('amount text');
+    expect(getDescriptor('H1')?.displayName).toBe('一级标题');
+    expect(getDescriptor('BodyText')?.displayName).toBe('正文文本');
+    expect(getDescriptor('HelperText')?.displayName).toBe('辅助文本');
+    expect(getDescriptor('LinkText')?.displayName).toBe('链接文本');
+    expect(getDescriptor('ErrorText')?.displayName).toBe('错误文本');
+    expect(getDescriptor('StatusLabel')?.displayName).toBe('状态标签');
+    expect(getDescriptor('AmountText')?.displayName).toBe('金额文本');
+  });
+
+  it('uses Chinese default content and Chinese prop labels for text widgets', () => {
+    const pageTitle = createNode('PageTitle');
+    const definition = getComponentDefinition('PageTitle');
+
+    expect(pageTitle.props.content).toBe('页面标题');
+    expect(definition?.propSchema.flatMap((group) => group.fields.map((field) => field.label))).toEqual(expect.arrayContaining(['内容', '字号', '字重', '颜色']));
+  });
+
+  it('adds visual restoration primitives for screenshot recreation', () => {
+    expect(createNode('VisualBlock').props).toMatchObject({ label: '视觉色块' });
+    expect(createNode('TableSkeleton').props).toMatchObject({ columns: 6, rows: 4 });
   });
 });

@@ -18,7 +18,7 @@ function LeftWorkbench() {
   );
 }
 
-export function WorkbenchShell() {
+export function WorkbenchShell({ onBackHome }: { onBackHome?: (() => void) | undefined }) {
   const project = useProjectStore((state) => state.project);
   const currentPageId = useProjectStore((state) => state.currentPageId);
   const currentFrameId = useProjectStore((state) => state.currentFrameId);
@@ -26,7 +26,7 @@ export function WorkbenchShell() {
 
   return (
     <div className="workbench-shell">
-      <TopToolbar />
+      <TopToolbar onBackHome={onBackHome} />
       {mode === 'preview' ? (
         <div className="preview-shell">
           <RuntimeProvider project={project} initialPageId={currentPageId}>

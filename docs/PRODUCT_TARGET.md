@@ -16,4 +16,6 @@ Users should be able to drag, move, resize, align, copy, group, right-click, and
 
 The product remains frontend-only and MVP-scoped. It is not a production low-code platform, deployment generator, database builder, collaboration product, or enterprise RBAC system.
 
+Active phase: `V1.1-S4-canvas-actions-layer-template-workflow`.
+
 The current S4 focus is workflow continuity: space-pan and canvas shortcuts, layer management, template save/reuse, recent assets, runtime visibility/interactivity actions, and PRD output that describes these behaviors in business language.

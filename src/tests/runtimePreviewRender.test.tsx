@@ -62,6 +62,43 @@ describe('runtime preview rendering', () => {
     expect(await screen.findByText('保存成功')).toBeInTheDocument();
   });
 
+  it('applies runtime prop changes through preview dispatch', async () => {
+    const propProject: Project = {
+      ...project,
+      interactions: [
+        {
+          id: 'interaction_set_button_text',
+          name: 'Set button text',
+          trigger: { componentId: 'button_show_message', event: 'click' },
+          actions: [{ type: 'setNodeProp', targetNodeId: 'button_show_message', propKey: 'text', value: { kind: 'literal', value: 'Saved' } }],
+          enabled: true,
+        },
+      ],
+      pages: [
+        {
+          ...project.pages[0]!,
+          nodes: {
+            ...project.pages[0]!.nodes,
+            button_show_message: {
+              ...project.pages[0]!.nodes.button_show_message!,
+              props: { text: 'Save', variant: 'primary' },
+            },
+          },
+        },
+      ],
+    };
+
+    render(
+      <RuntimeProvider project={propProject} initialPageId="page_main">
+        <RuntimeRenderer project={propProject} />
+      </RuntimeProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('button', { name: 'Saved' })).toBeInTheDocument();
+  });
+
   it('closes open modal nodes by default when no close interaction is configured', () => {
     const state = { ...createRuntimeState(project, 'page_main'), openNodes: ['modal_1'] };
     const modalProject: Project = {
@@ -119,7 +156,8 @@ describe('runtime preview rendering', () => {
               type: 'H1',
               name: 'Hidden title',
               props: { content: 'Hidden content' },
-              canvas: { x: 24, y: 96, width: 320, height: 48, zIndex: 4, hidden: true, parentFrameId: 'frame_a' },
+              runtime: { initialVisible: false },
+              canvas: { x: 24, y: 96, width: 320, height: 48, zIndex: 4, parentFrameId: 'frame_a' },
             },
             draft_note: {
               id: 'draft_note',
@@ -247,7 +285,7 @@ describe('runtime preview rendering', () => {
     expect(document.querySelector('.resize-handle')).not.toBeInTheDocument();
   });
 
-  it('preserves structured root-node preview when a page has no frames while excluding hidden nodes', () => {
+  it('preserves structured root-node preview when a page has no frames while excluding runtime-hidden nodes', () => {
     const legacyProject: Project = {
       ...project,
       pages: [
@@ -275,7 +313,8 @@ describe('runtime preview rendering', () => {
               type: 'H1',
               name: 'Hidden child',
               props: { content: 'Hidden structured child' },
-              canvas: { x: 0, y: 0, width: 320, height: 48, zIndex: 1, hidden: true },
+              runtime: { initialVisible: false },
+              canvas: { x: 0, y: 0, width: 320, height: 48, zIndex: 1 },
             },
           },
         },

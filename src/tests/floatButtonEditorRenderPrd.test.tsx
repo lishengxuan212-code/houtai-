@@ -22,7 +22,7 @@ describe('FloatButton editor, preview, and PRD sync', () => {
 
     fireEvent.change(screen.getByLabelText('按钮内容'), { target: { value: '帮助' } });
     expect(updateProps).toHaveBeenCalledWith(expect.objectContaining({ content: '帮助' }));
-    expect(screen.queryByText('Advanced / Debug')).toBeInTheDocument();
+    expect(screen.queryByText('高级 / 调试')).toBeInTheDocument();
   });
 
   it('renders edited FloatButton props and dispatches click interactions', async () => {

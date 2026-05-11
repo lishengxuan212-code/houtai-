@@ -15,26 +15,44 @@ beforeEach(() => {
 
 describe('ProjectManager', () => {
   it('creates, lists, opens, renames, and deletes local projects', () => {
-    const project = createProjectFromTemplate({ name: 'CRM 后台', businessType: 'crm', template: 'blank' });
-    expect(project.name).toBe('CRM 后台');
+    const project = createProjectFromTemplate({ name: 'CRM Admin', businessType: 'crm', template: 'blank' });
+    expect(project.name).toBe('CRM Admin');
     expect(project.pages).toHaveLength(1);
 
     saveProjectRecord(project);
-    expect(listProjects()).toMatchObject([{ id: project.id, name: 'CRM 后台', businessType: 'crm', pageCount: 1 }]);
+    expect(listProjects()).toMatchObject([{ id: project.id, name: 'CRM Admin', businessType: 'crm', pageCount: 1 }]);
     expect(openProject(project.id)?.id).toBe(project.id);
 
-    renameProject(project.id, '销售 CRM');
-    expect(listProjects()[0]?.name).toBe('销售 CRM');
+    renameProject(project.id, 'Sales CRM');
+    expect(listProjects()[0]?.name).toBe('Sales CRM');
 
     deleteProject(project.id);
     expect(listProjects()).toEqual([]);
   });
 
   it('can create from built-in project templates without mutating the source project', () => {
-    const project = createProjectFromTemplate({ name: '订单后台副本', businessType: 'ecommerce', template: 'builtin' });
-    expect(project.name).toBe('订单后台副本');
+    const project = createProjectFromTemplate({ name: 'Order Admin Copy', businessType: 'ecommerce', template: 'builtin' });
+    expect(project.name).toBe('Order Admin Copy');
     expect(project.pages.length).toBeGreaterThan(1);
     expect(project.id).not.toBe(initialProject.id);
-    expect(initialProject.name).not.toBe('订单后台副本');
+    expect(initialProject.name).not.toBe('Order Admin Copy');
+  });
+
+  it('creates the first page frame with the requested canvas size', () => {
+    const project = createProjectFromTemplate({
+      name: 'Visual restore project',
+      businessType: 'blank',
+      template: 'blank',
+      canvasWidth: 1440,
+      canvasHeight: 900,
+    });
+
+    expect(project.pages[0]?.frames?.[0]).toMatchObject({
+      width: 1440,
+      height: 900,
+    });
+
+    saveProjectRecord(project);
+    expect(listProjects()[0]?.canvasSize).toEqual({ width: 1440, height: 900 });
   });
 });

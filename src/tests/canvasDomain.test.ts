@@ -7,6 +7,13 @@ import {
   distributeNodesByCanvas,
   ensureNodeCanvas,
   filterNodesForFrame,
+  getNextFrameZIndex,
+  moveNodeBackwardByZIndex,
+  moveNodeForwardByZIndex,
+  reorderLayerStackByZIndex,
+  sendNodeToBackByZIndex,
+  bringNodeToFrontByZIndex,
+  sortNodesByZIndex,
   setNodeCanvasHidden,
   setNodeCanvasLocked,
 } from '../domain/canvas';
@@ -173,6 +180,75 @@ describe('canvas domain model', () => {
     expect(result.nodes.copy_button?.id).toBe('copy_button');
   });
 
+  it('calculates the next frame z-index from nodes in the same frame only', () => {
+    const page = pageWithNodes({
+      node_a: node('node_a', { x: 0, y: 0, width: 80, height: 40, zIndex: 3, parentFrameId: 'frame_a' }),
+      node_b: node('node_b', { x: 0, y: 0, width: 80, height: 40, zIndex: 9, parentFrameId: 'frame_b' }),
+      draft: node('draft', { x: 0, y: 0, width: 80, height: 40, zIndex: 12 }),
+    });
+
+    expect(getNextFrameZIndex(page, 'frame_a')).toBe(4);
+    expect(getNextFrameZIndex(page, 'frame_c')).toBe(1);
+  });
+
+  it('orders and moves layer z-index values within a frame', () => {
+    const page = pageWithNodes({
+      node_a: node('node_a', { x: 0, y: 0, width: 80, height: 40, zIndex: 1, parentFrameId: 'frame_a' }),
+      node_b: node('node_b', { x: 0, y: 0, width: 80, height: 40, zIndex: 2, parentFrameId: 'frame_a' }),
+      node_c: node('node_c', { x: 0, y: 0, width: 80, height: 40, zIndex: 3, parentFrameId: 'frame_a' }),
+    });
+
+    expect(sortNodesByZIndex(Object.values(page.nodes)).map((item) => item.id)).toEqual(['root', 'node_a', 'node_b', 'node_c']);
+    expect(bringNodeToFrontByZIndex(page, 'node_a', 'frame_a').map((item) => [item.nodeId, item.zIndex])).toEqual([
+      ['node_a', 4],
+    ]);
+    expect(sendNodeToBackByZIndex(page, 'node_c', 'frame_a').map((item) => [item.nodeId, item.zIndex])).toEqual([
+      ['node_c', -1],
+    ]);
+    expect(moveNodeForwardByZIndex(page, 'node_a', 'frame_a').map((item) => [item.nodeId, item.zIndex])).toEqual([
+      ['node_a', 2],
+      ['node_b', 1],
+    ]);
+    expect(moveNodeBackwardByZIndex(page, 'node_c', 'frame_a').map((item) => [item.nodeId, item.zIndex])).toEqual([
+      ['node_c', 2],
+      ['node_b', 3],
+    ]);
+  });
+
+  it('reorders a layer stack into sequential z-index values', () => {
+    const page = pageWithNodes({
+      node_a: node('node_a', { x: 0, y: 0, width: 80, height: 40, zIndex: 10, parentFrameId: 'frame_a' }),
+      node_b: node('node_b', { x: 0, y: 0, width: 80, height: 40, zIndex: 20, parentFrameId: 'frame_a' }),
+      node_c: node('node_c', { x: 0, y: 0, width: 80, height: 40, zIndex: 30, parentFrameId: 'frame_a' }),
+    });
+
+    expect(reorderLayerStackByZIndex(page, ['node_c', 'node_a', 'node_b'], 'frame_a')).toEqual([
+      { nodeId: 'node_c', zIndex: 1 },
+      { nodeId: 'node_a', zIndex: 2 },
+      { nodeId: 'node_b', zIndex: 3 },
+    ]);
+  });
+
+  it('can place cloned root nodes above the current frame layer stack', () => {
+    const source = pageWithNodes({
+      panel: {
+        ...node('panel', { x: 10, y: 20, width: 200, height: 100, zIndex: 1, parentFrameId: 'frame_a' }),
+        children: ['button'],
+      },
+      button: node('button', { x: 24, y: 48, width: 100, height: 32, zIndex: 2, parentFrameId: 'frame_a' }),
+      top: node('top', { x: 0, y: 0, width: 100, height: 32, zIndex: 8, parentFrameId: 'frame_a' }),
+    });
+
+    const result = cloneNodesWithNewIds(source, ['panel'], {
+      idFactory: (oldId) => `copy_${oldId}`,
+      targetFrameId: 'frame_a',
+      placeAtHighestLayer: true,
+    });
+
+    expect(result.nodes.copy_panel?.canvas?.zIndex).toBe(9);
+    expect(result.nodes.copy_button?.canvas?.zIndex).toBe(10);
+  });
+
   it('sets lock and hide flags without changing other canvas bounds', () => {
     const original = node('button_1', { x: 1, y: 2, width: 3, height: 4, zIndex: 5, parentFrameId: 'frame_a' });
 
@@ -250,5 +326,45 @@ describe('canvas domain model', () => {
       parentFrameId: 'frame_a',
       hidden: true,
     });
+  });
+
+  it('moves grouped canvas children by the same delta as the group boundary', () => {
+    const project: Project = {
+      id: 'project_group_move',
+      name: 'Group move',
+      version: 1,
+      createdAt: '2026-05-08T00:00:00.000Z',
+      updatedAt: '2026-05-08T00:00:00.000Z',
+      dataSources: [],
+      variables: [],
+      interactions: [],
+      pages: [
+        pageWithNodes({
+          group_1: {
+            id: 'group_1',
+            type: 'Section',
+            name: 'Order module',
+            props: { title: 'Order module' },
+            canvas: { x: 40, y: 50, width: 260, height: 140, zIndex: 5, parentFrameId: 'frame_a' },
+            children: ['button_1', 'button_2'],
+          },
+          button_1: node('button_1', { x: 64, y: 72, width: 100, height: 32, zIndex: 1, parentFrameId: 'frame_a' }),
+          button_2: node('button_2', { x: 180, y: 120, width: 100, height: 32, zIndex: 2, parentFrameId: 'frame_a' }),
+        }),
+      ],
+    };
+    project.pages[0]!.nodes.root!.children = ['group_1'];
+
+    const moved = applyOperation(project, {
+      type: 'updateNodeCanvas',
+      pageId: 'page_canvas',
+      nodeId: 'group_1',
+      canvas: { x: 90, y: 80 },
+    });
+
+    const nodes = moved.pages[0]!.nodes;
+    expect(nodes.group_1?.canvas).toMatchObject({ x: 90, y: 80 });
+    expect(nodes.button_1?.canvas).toMatchObject({ x: 114, y: 102 });
+    expect(nodes.button_2?.canvas).toMatchObject({ x: 230, y: 150 });
   });
 });

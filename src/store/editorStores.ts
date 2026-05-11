@@ -40,11 +40,16 @@ export const useCanvasInteractionStore = create<CanvasInteractionStore>((set, ge
 
 type CanvasViewportStore = {
   zoom: number;
+  spacePanActive: boolean;
   setZoom: (zoom: number) => void;
+  setSpacePanActive: (active: boolean) => void;
+  resetViewport: () => void;
 };
 
 export const useCanvasViewportStore = create<CanvasViewportStore>((set) => ({
   zoom: 1,
+  spacePanActive: false,
   setZoom: (zoom) => set({ zoom }),
+  setSpacePanActive: (active) => set({ spacePanActive: active }),
+  resetViewport: () => set({ zoom: 1, spacePanActive: false }),
 }));
-

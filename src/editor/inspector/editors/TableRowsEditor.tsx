@@ -1,7 +1,7 @@
 import { Button, Input, Space } from 'antd';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import type { JsonRecord } from '../../../domain/types';
-import { columnKey, columnTitle, generateRowsFromColumns } from './tableRowsUtils';
+import { generateRowsFromColumns, normalizeRowColumns } from './tableRowsUtils';
 
 type ColumnLike = {
   key?: string;
@@ -24,7 +24,7 @@ function updateCell(rows: JsonRecord[], index: number, key: string, value: strin
 
 export function TableRowsEditor({ value, columns, onChange }: { value: JsonRecord[]; columns: ColumnLike[]; onChange: (value: JsonRecord[]) => void }) {
   const rows = Array.isArray(value) ? value : [];
-  const visibleColumns = columns.map((column) => ({ key: columnKey(column), title: columnTitle(column) })).filter((column) => column.key);
+  const visibleColumns = normalizeRowColumns(columns);
   return (
     <Space direction="vertical" style={{ width: '100%' }}>
       {rows.map((row, rowIndex) => (

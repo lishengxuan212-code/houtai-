@@ -1,8 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssemblyCanvas } from '../editor/AssemblyCanvas';
+import { PageOutlinePanel } from '../editor/workbench/PageOutlinePanel';
 import type { Project } from '../domain/types';
+import { useCanvasViewportStore } from '../store/editorStores';
 import { useProjectStore } from '../store/projectStore';
+import { createTemplateFromSelection, saveUserTemplate } from '../templates/templateOperations';
+import { listUserTemplates } from '../templates/templateStorage';
 
 const storage = new Map<string, string>();
 
@@ -79,6 +83,36 @@ function dispatchDrop(element: HTMLElement, type: string, clientX: number, clien
   fireEvent(element, event);
 }
 
+function setCanvasViewport(element: HTMLElement, box: { scrollLeft: number; scrollTop: number; clientWidth: number; clientHeight: number }) {
+  Object.defineProperties(element, {
+    scrollLeft: { configurable: true, writable: true, value: box.scrollLeft },
+    scrollTop: { configurable: true, writable: true, value: box.scrollTop },
+    clientWidth: { configurable: true, value: box.clientWidth },
+    clientHeight: { configurable: true, value: box.clientHeight },
+  });
+  fireEvent.scroll(element);
+}
+
+function projectWithThreeButtons() {
+  const project: Project = structuredClone(baseProject);
+  project.pages[0]!.nodes.button_two = {
+    id: 'button_two',
+    type: 'Button',
+    name: 'Secondary action',
+    props: { text: 'Archive', variant: 'default', danger: false },
+    canvas: { x: 260, y: 160, width: 180, height: 48, zIndex: 5, parentFrameId: 'frame_page_canvas_default' },
+  };
+  project.pages[0]!.nodes.button_three = {
+    id: 'button_three',
+    type: 'Button',
+    name: 'Third action',
+    props: { text: 'Export', variant: 'default', danger: false },
+    canvas: { x: 520, y: 260, width: 180, height: 48, zIndex: 6, parentFrameId: 'frame_page_canvas_default' },
+  };
+  project.pages[0]!.nodes.root!.children = ['button_one', 'button_two', 'button_three'];
+  return project;
+}
+
 describe('AssemblyCanvas page-frame editor', () => {
   beforeEach(() => {
     Object.defineProperty(globalThis, 'localStorage', {
@@ -100,6 +134,7 @@ describe('AssemblyCanvas page-frame editor', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    useCanvasViewportStore.getState().resetViewport();
   });
 
   it('drops library components into the active frame with canvas metadata', async () => {
@@ -119,9 +154,9 @@ describe('AssemblyCanvas page-frame editor', () => {
       y: 140,
       width: 180,
       height: 48,
+      zIndex: 5,
       parentFrameId: 'frame_page_canvas_default',
     });
-    expect(typeof added?.canvas?.zIndex).toBe('number');
   });
 
   it('renders selected frame nodes with absolute canvas positioning', async () => {
@@ -133,6 +168,35 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(node).toHaveClass('selected');
     expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one']);
     expect(node).toHaveStyle({ position: 'absolute', left: '64px', top: '72px', width: '180px', height: '48px', zIndex: '3' });
+  });
+
+  it('supports Shift click multi-select and Esc clear selection', async () => {
+    replaceProject(projectWithThreeButtons());
+    render(<AssemblyCanvas />);
+
+    fireEvent.click(await screen.findByTestId('canvas-node-button_one'));
+    fireEvent.click(screen.getByTestId('canvas-node-button_two'), { shiftKey: true });
+
+    expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one', 'button_two']);
+    expect(screen.getByTestId('canvas-node-button_one')).toHaveClass('selected');
+    expect(screen.getByTestId('canvas-node-button_two')).toHaveClass('selected');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(useProjectStore.getState().selectedNodeIds).toEqual([]);
+  });
+
+  it('box-selects canvas nodes inside the dragged frame region', async () => {
+    replaceProject(projectWithThreeButtons());
+    mockCanvasRects();
+    render(<AssemblyCanvas />);
+
+    const frame = await screen.findByTestId('canvas-page-frame');
+    fireEvent.mouseDown(frame, { clientX: 130, clientY: 120, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 460, clientY: 330 });
+    fireEvent.mouseUp(window);
+
+    expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one', 'button_two']);
   });
 
   it('persists drag movement and resize through canvas updates', async () => {
@@ -187,8 +251,48 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(pasted?.id).not.toBe('button_one');
     expect(pasted?.type).toBe('Button');
     expect(pasted?.props).toEqual(page.nodes.button_one?.props);
-    expect(pasted?.canvas).toMatchObject({ x: 88, y: 96, parentFrameId: 'frame_page_canvas_default' });
+    expect(pasted?.canvas).toMatchObject({ x: 88, y: 96, zIndex: 5, parentFrameId: 'frame_page_canvas_default' });
     expect(page.nodes.root?.children).toContain(pasted?.id);
+  });
+
+  it('groups and ungroups selected nodes with keyboard shortcuts', async () => {
+    replaceProject(projectWithThreeButtons());
+    render(<AssemblyCanvas />);
+
+    fireEvent.click(await screen.findByTestId('canvas-node-button_one'));
+    fireEvent.click(screen.getByTestId('canvas-node-button_two'), { shiftKey: true });
+    fireEvent.keyDown(document, { key: 'g', ctrlKey: true });
+
+    const grouped = useProjectStore.getState();
+    const groupId = grouped.selectedNodeId!;
+    expect(grouped.project.pages[0]!.nodes[groupId]?.children).toEqual(['button_one', 'button_two']);
+
+    fireEvent.keyDown(document, { key: 'G', ctrlKey: true, shiftKey: true });
+
+    expect(useProjectStore.getState().project.pages[0]!.nodes[groupId]).toBeUndefined();
+    expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one', 'button_two']);
+  });
+
+  it('keeps the layer panel selection and canvas selection synchronized', async () => {
+    render(<PageOutlinePanel />);
+
+    fireEvent.click(await screen.findByTestId('layer-row-button_one'));
+
+    expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one']);
+    expect(screen.getByTestId('layer-row-button_one')).toHaveClass('active');
+  });
+
+  it('updates lock hide and rename state from the layer panel', async () => {
+    render(<PageOutlinePanel />);
+
+    fireEvent.click(await screen.findByLabelText('lock-layer-button_one'));
+    fireEvent.click(screen.getByLabelText('hide-layer-button_one'));
+    fireEvent.change(screen.getByDisplayValue('Primary action'), { target: { value: 'Layer renamed action' } });
+    fireEvent.blur(screen.getByDisplayValue('Layer renamed action'));
+
+    const node = useProjectStore.getState().project.pages[0]!.nodes.button_one;
+    expect(node?.canvas).toMatchObject({ locked: true, hidden: true });
+    expect(node?.name).toBe('Layer renamed action');
   });
 
   it('aligns and distributes selected canvas nodes through store commands', async () => {
@@ -231,15 +335,114 @@ describe('AssemblyCanvas page-frame editor', () => {
     const node = await screen.findByTestId('canvas-node-button_one');
     fireEvent.contextMenu(node);
 
-    expect(screen.getByText('Bring front')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Bring front'));
+    expect(screen.getByLabelText('context-bring-front')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('context-bring-front'));
 
     expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas?.zIndex).toBe(5);
 
     fireEvent.contextMenu(node);
-    fireEvent.click(screen.getByText('Send back'));
+    fireEvent.click(screen.getByLabelText('context-send-back'));
 
     expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas?.zIndex).toBeLessThan(0);
+  });
+
+  it('runs context menu copy paste rename lock hide delete and save template actions', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Renamed from menu');
+    render(<AssemblyCanvas />);
+
+    const node = await screen.findByTestId('canvas-node-button_one');
+    fireEvent.contextMenu(node);
+    fireEvent.click(screen.getByLabelText('context-copy'));
+
+    fireEvent.contextMenu(node);
+    fireEvent.click(screen.getByLabelText('context-paste'));
+
+    let page = useProjectStore.getState().project.pages[0]!;
+    const pastedId = useProjectStore.getState().selectedNodeId!;
+    expect(pastedId).not.toBe('button_one');
+    expect(page.nodes[pastedId]?.type).toBe('Button');
+
+    fireEvent.contextMenu(screen.getByTestId(`canvas-node-${pastedId}`));
+    fireEvent.click(screen.getByLabelText('context-rename'));
+    expect(useProjectStore.getState().project.pages[0]!.nodes[pastedId]?.name).toBe('Renamed from menu');
+
+    fireEvent.contextMenu(screen.getByTestId(`canvas-node-${pastedId}`));
+    fireEvent.click(screen.getByLabelText('context-lock'));
+    expect(useProjectStore.getState().project.pages[0]!.nodes[pastedId]?.canvas?.locked).toBe(true);
+
+    fireEvent.contextMenu(screen.getByTestId(`canvas-node-${pastedId}`));
+    fireEvent.click(screen.getByLabelText('context-save-template'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByLabelText('Close')[0]!);
+
+    fireEvent.contextMenu(screen.getByTestId(`canvas-node-${pastedId}`));
+    fireEvent.click(screen.getByLabelText('context-hide'));
+    expect(screen.queryByTestId(`canvas-node-${pastedId}`)).not.toBeInTheDocument();
+
+    useProjectStore.getState().selectNode('button_one');
+    fireEvent.contextMenu(screen.getByTestId('canvas-node-button_one'));
+    fireEvent.click(screen.getByLabelText('context-delete'));
+    page = useProjectStore.getState().project.pages[0]!;
+    expect(page.nodes.button_one).toBeUndefined();
+    expect(promptSpy).toHaveBeenCalledWith('重命名组件', 'Primary action');
+  });
+
+  it('preserves multi-selection when opening the context menu on an already selected node', async () => {
+    replaceProject(projectWithThreeButtons());
+    render(<AssemblyCanvas />);
+
+    fireEvent.click(await screen.findByTestId('canvas-node-button_one'));
+    fireEvent.click(screen.getByTestId('canvas-node-button_two'), { shiftKey: true });
+    fireEvent.contextMenu(screen.getByTestId('canvas-node-button_two'));
+    fireEvent.click(screen.getByLabelText('context-group'));
+
+    const groupId = useProjectStore.getState().selectedNodeId!;
+    expect(useProjectStore.getState().project.pages[0]!.nodes[groupId]?.children).toEqual(['button_one', 'button_two']);
+  });
+
+  it('handles delete undo redo and layer ordering shortcuts without firing inside inputs', async () => {
+    replaceProject(projectWithThreeButtons());
+    render(<AssemblyCanvas />);
+
+    fireEvent.click(await screen.findByTestId('canvas-node-button_two'));
+    fireEvent.keyDown(document, { key: ']', ctrlKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two?.canvas?.zIndex).toBe(6);
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_three?.canvas?.zIndex).toBe(5);
+
+    fireEvent.keyDown(document, { key: 'z', ctrlKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two?.canvas?.zIndex).toBe(5);
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_three?.canvas?.zIndex).toBe(6);
+
+    fireEvent.keyDown(document, { key: 'Z', ctrlKey: true, shiftKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two?.canvas?.zIndex).toBe(6);
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_three?.canvas?.zIndex).toBe(5);
+
+    fireEvent.keyDown(document, { key: '[', ctrlKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two?.canvas?.zIndex).toBe(5);
+
+    fireEvent.keyDown(document, { key: ']', ctrlKey: true, shiftKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two?.canvas?.zIndex).toBeGreaterThan(6);
+
+    fireEvent.keyDown(document, { key: '[', ctrlKey: true, shiftKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two?.canvas?.zIndex).toBeLessThan(3);
+
+    fireEvent.keyDown(document, { key: 'Delete' });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two).toBeUndefined();
+
+    fireEvent.keyDown(document, { key: 'z', ctrlKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two).toBeDefined();
+
+    fireEvent.keyDown(document, { key: 'Z', ctrlKey: true, shiftKey: true });
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two).toBeUndefined();
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    fireEvent.keyDown(input, { key: 'z', ctrlKey: true });
+    fireEvent.keyDown(input, { key: 'Delete' });
+
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two).toBeUndefined();
+    input.remove();
   });
 
   it('groups and ungroups selected canvas nodes through project operations', () => {
@@ -270,5 +473,147 @@ describe('AssemblyCanvas page-frame editor', () => {
     const ungroupedPage = useProjectStore.getState().project.pages[0]!;
     expect(ungroupedPage.nodes[groupId]).toBeUndefined();
     expect(ungroupedPage.nodes.root?.children).toEqual(['button_one', 'button_two']);
+  });
+
+  it('places a new group above the active frame layer stack', () => {
+    replaceProject(projectWithThreeButtons());
+
+    useProjectStore.getState().selectNodes(['button_one', 'button_two']);
+    useProjectStore.getState().groupSelectedNodes();
+
+    const groupedState = useProjectStore.getState();
+    const group = groupedState.selectedNodeId ? groupedState.project.pages[0]!.nodes[groupedState.selectedNodeId] : undefined;
+    expect(group?.canvas?.zIndex).toBe(7);
+  });
+
+  it('saves a selected group as a reusable group template', () => {
+    replaceProject(projectWithThreeButtons());
+
+    useProjectStore.getState().selectNodes(['button_one', 'button_two']);
+    useProjectStore.getState().groupSelectedNodes();
+    const groupId = useProjectStore.getState().selectedNodeId!;
+    const { project } = useProjectStore.getState();
+    const template = createTemplateFromSelection(project, 'page_canvas', groupId, {
+      name: 'Order action group',
+      type: 'group',
+      category: '业务模块',
+    });
+    saveUserTemplate(template);
+
+    expect(listUserTemplates()[0]).toMatchObject({ type: 'group', content: { rootNodeId: groupId } });
+    expect(Object.keys(listUserTemplates()[0]!.content.nodes).sort()).toEqual(['button_one', 'button_two', groupId].sort());
+  });
+
+  it('pans the canvas while Space is held without changing project data', async () => {
+    render(<AssemblyCanvas />);
+
+    const canvas = (await screen.findByTestId('canvas-page-frame')).closest('.assembly-canvas') as HTMLElement;
+    setCanvasViewport(canvas, { scrollLeft: 260, scrollTop: 240, clientWidth: 800, clientHeight: 600 });
+    const beforeProject = useProjectStore.getState().project;
+    let projectNotifications = 0;
+    const unsubscribe = useProjectStore.subscribe(() => {
+      projectNotifications += 1;
+    });
+
+    fireEvent.keyDown(document, { key: ' ' });
+    fireEvent.mouseDown(canvas, { clientX: 320, clientY: 260, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 380, clientY: 310 });
+    fireEvent.mouseUp(window);
+    fireEvent.keyUp(document, { key: ' ' });
+    unsubscribe();
+
+    expect(canvas.scrollLeft).toBe(200);
+    expect(canvas.scrollTop).toBe(190);
+    expect(useProjectStore.getState().project).toBe(beforeProject);
+    expect(projectNotifications).toBe(0);
+  });
+
+  it('pans instead of moving a node when Space drag starts over a canvas node', async () => {
+    render(<AssemblyCanvas />);
+
+    const node = await screen.findByTestId('canvas-node-button_one');
+    const canvas = node.closest('.assembly-canvas') as HTMLElement;
+    setCanvasViewport(canvas, { scrollLeft: 260, scrollTop: 240, clientWidth: 800, clientHeight: 600 });
+    const beforeProject = useProjectStore.getState().project;
+
+    fireEvent.keyDown(document, { key: ' ' });
+    fireEvent.mouseDown(node, { clientX: 320, clientY: 260, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 380, clientY: 310 });
+    fireEvent.mouseUp(window);
+    fireEvent.keyUp(document, { key: ' ' });
+
+    expect(canvas.scrollLeft).toBe(200);
+    expect(canvas.scrollTop).toBe(190);
+    expect(useProjectStore.getState().project).toBe(beforeProject);
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas).toMatchObject({ x: 64, y: 72 });
+  });
+
+  it('pans the canvas with middle mouse drag without selecting nodes or changing project data', async () => {
+    render(<AssemblyCanvas />);
+
+    const canvas = (await screen.findByTestId('canvas-page-frame')).closest('.assembly-canvas') as HTMLElement;
+    setCanvasViewport(canvas, { scrollLeft: 320, scrollTop: 300, clientWidth: 800, clientHeight: 600 });
+    const beforeProject = useProjectStore.getState().project;
+
+    fireEvent.mouseDown(canvas, { clientX: 420, clientY: 360, button: 1 });
+    fireEvent.mouseMove(window, { clientX: 390, clientY: 330 });
+    fireEvent.mouseUp(window);
+
+    expect(canvas.scrollLeft).toBe(350);
+    expect(canvas.scrollTop).toBe(330);
+    expect(useProjectStore.getState().selectedNodeId).toBe('root');
+    expect(useProjectStore.getState().project).toBe(beforeProject);
+  });
+
+  it('keeps Ctrl or Cmd wheel zoom as viewport-only editor state', async () => {
+    render(<AssemblyCanvas />);
+
+    const canvas = (await screen.findByTestId('canvas-page-frame')).closest('.assembly-canvas') as HTMLElement;
+    const beforeProject = useProjectStore.getState().project;
+
+    fireEvent.wheel(canvas, { deltaY: -120, ctrlKey: true });
+
+    expect(useCanvasViewportStore.getState().zoom).toBe(1.08);
+    expect(useProjectStore.getState().project).toBe(beforeProject);
+
+    fireEvent.wheel(canvas, { deltaY: 120, metaKey: true });
+
+    expect(useCanvasViewportStore.getState().zoom).toBe(1);
+    expect(useProjectStore.getState().project).toBe(beforeProject);
+  });
+
+  it('centers the active page frame with Home without changing project data', async () => {
+    render(<AssemblyCanvas />);
+
+    const canvas = (await screen.findByTestId('canvas-page-frame')).closest('.assembly-canvas') as HTMLElement;
+    setCanvasViewport(canvas, { scrollLeft: 0, scrollTop: 0, clientWidth: 800, clientHeight: 600 });
+    const beforeProject = useProjectStore.getState().project;
+
+    fireEvent.keyDown(document, { key: 'Home' });
+
+    expect(canvas.scrollLeft).toBe(360);
+    expect(canvas.scrollTop).toBe(240);
+    expect(useProjectStore.getState().project).toBe(beforeProject);
+  });
+
+  it('suppresses Space pan and Home canvas shortcuts while editing form controls', async () => {
+    render(<AssemblyCanvas />);
+
+    const canvas = (await screen.findByTestId('canvas-page-frame')).closest('.assembly-canvas') as HTMLElement;
+    setCanvasViewport(canvas, { scrollLeft: 260, scrollTop: 240, clientWidth: 800, clientHeight: 600 });
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, { key: ' ' });
+    fireEvent.mouseDown(canvas, { clientX: 320, clientY: 260, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 380, clientY: 310 });
+    fireEvent.mouseUp(window);
+    fireEvent.keyDown(input, { key: 'Home' });
+
+    expect(canvas.scrollLeft).toBe(260);
+    expect(canvas.scrollTop).toBe(240);
+
+    input.remove();
   });
 });

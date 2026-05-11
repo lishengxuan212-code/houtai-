@@ -8,6 +8,12 @@ export type RuntimeContextValue = {
   dispatch: (event: RuntimeEvent) => void;
   getData: (dataSourceId: string) => JsonRecord[];
   isNodeOpen: (nodeId: string) => boolean;
+  isNodeVisible: (nodeId: string) => boolean;
+  isNodeDisabled: (nodeId: string) => boolean;
+  getNodeProps: (nodeId: string) => JsonRecord;
+  getFormValues: (nodeId: string) => JsonRecord;
+  getActiveTab: (nodeId: string) => string | undefined;
+  getLatestScrollRequest: (nodeId: string) => { id: string; targetNodeId: string } | undefined;
 };
 
 export const RuntimeContext = createContext<RuntimeContextValue | null>(null);

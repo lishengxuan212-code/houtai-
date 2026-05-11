@@ -5,13 +5,113 @@ import type { NodeRendererProps } from './rendererTypes';
 import { asArray, asString } from './primitive';
 
 type ColumnConfig = { key: string; title: string };
+type TableColumnConfig = ColumnConfig & { actionItems?: string[] };
+
+const ACTION_COLUMN_TITLES = new Set(['操作', 'actions', 'Actions']);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeColumn(item: unknown, index: number): ColumnConfig | undefined {
+  if (typeof item === 'string') {
+    const title = item.trim();
+    return title ? { key: title, title } : undefined;
+  }
+  if (!isRecord(item)) return undefined;
+  const title = String(item.title ?? item.label ?? item.name ?? item.dataIndex ?? item.key ?? '').trim();
+  const key = String((item.key ?? item.dataIndex ?? title) || `col_${index + 1}`).trim();
+  return key ? { key, title: title || key } : undefined;
+}
+
+function normalizeColumns(value: unknown): ColumnConfig[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(normalizeColumn)
+    .filter((column): column is ColumnConfig => Boolean(column));
+}
+
+function uniqueActions(...groups: unknown[]): string[] {
+  return Array.from(
+    new Set(
+      groups
+        .flatMap((group) => (Array.isArray(group) ? group : []))
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean),
+    ),
+  );
+}
+
+function normalizeActionItems(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+}
+
+function normalizeActionGroups(value: unknown): Record<string, string[]> {
+  if (!isRecord(value)) return {};
+  return Object.entries(value).reduce<Record<string, string[]>>((groups, [key, value]) => {
+    const items = normalizeActionItems(value);
+    if (items.length > 0) groups[key] = items;
+    return groups;
+  }, {});
+}
+
+function actionGroupForColumn(column: ColumnConfig, groups: Record<string, string[]>): string[] {
+  const candidates = [column.title, column.key, `${column.title}列`, `${column.key}列`];
+  for (const candidate of candidates) {
+    const group = groups[candidate];
+    if (group?.length) return group;
+  }
+  return [];
+}
+
+function tableColumns(columns: ColumnConfig[], actions: string[], rowActions: unknown): TableColumnConfig[] {
+  const groupedActions = normalizeActionGroups(rowActions);
+  const hasGroupedActions = Object.keys(groupedActions).length > 0;
+
+  if (hasGroupedActions) {
+    return columns.map((column) => {
+      const columnActions = actionGroupForColumn(column, groupedActions);
+      const actionItems = ACTION_COLUMN_TITLES.has(column.title) ? uniqueActions(actions, columnActions) : columnActions;
+      return actionItems.length ? { ...column, actionItems } : column;
+    });
+  }
+
+  const flatActions = uniqueActions(actions, rowActions);
+  const hasActionColumn = columns.some((column) => ACTION_COLUMN_TITLES.has(column.title));
+  const nextColumns = hasActionColumn ? columns : columns.filter((column) => !ACTION_COLUMN_TITLES.has(column.title));
+
+  if (!flatActions.length) return nextColumns;
+  if (hasActionColumn) {
+    return nextColumns.map((column) => (ACTION_COLUMN_TITLES.has(column.title) ? { ...column, actionItems: flatActions } : column));
+  }
+  return [...nextColumns, { key: 'actions', title: '操作', actionItems: flatActions }];
+}
+
+function readableCell(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(readableCell).filter(Boolean).join(' / ');
+  if (isRecord(value)) {
+    const preferred = value.text ?? value.label ?? value.title ?? value.name ?? value.value;
+    return preferred !== undefined ? readableCell(preferred) : JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function exampleRows(columns: ColumnConfig[], count = 3): JsonRecord[] {
+  return Array.from({ length: count }, (_, rowIndex) => ({
+    id: `preview_row_${rowIndex + 1}`,
+    ...Object.fromEntries(columns.map((column) => [column.key, `${column.title}示例${rowIndex + 1}`])),
+  }));
+}
 
 export function TableRenderer({ node, context }: NodeRendererProps) {
   const dataSourceId = asString(node.props.dataSourceId, '');
-  const propRows = asArray<JsonRecord>(node.data?.rows ?? node.props.rows, []);
-  const rows = propRows.length ? propRows : (context.getData?.(dataSourceId) ?? []);
-  const actions = asArray<string>(node.props.actions, []);
-  const rawColumns = asArray<ColumnConfig>(node.props.columns, []);
+  const propRows = asArray<JsonRecord>(node.data?.rows ?? node.props.rows ?? node.props.data, []);
+  const dataRows = propRows.length ? propRows : (context.getData?.(dataSourceId) ?? []);
+  const rawColumns = tableColumns(normalizeColumns(node.props.columns), normalizeActionItems(node.props.actions), node.props.rowActions);
+  const rows = dataRows.length ? dataRows : exampleRows(rawColumns);
 
   if (context.mode === 'edit') {
     return (
@@ -22,41 +122,38 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
               {context.inlineEdit?.arrayItemText({ node, arrayProp: 'columns', itemKey: column.key, labelKey: 'title', value: column.title }) ?? column.title}
             </span>
           ))}
-          {actions.length > 0 ? <span>操作</span> : null}
         </div>
-        {(rows.length ? rows.slice(0, 5) : [{}]).map((row, index) => (
+        {rows.slice(0, 5).map((row, index) => (
           <div className="design-table-row" key={String(row.id ?? row.key ?? index)}>
-            {rawColumns.map((column) => (
-              <span key={column.key}>{String(row[column.key] ?? '-')}</span>
-            ))}
-            {actions.length > 0 ? <span>{actions.join(' / ')}</span> : null}
+            {rawColumns.map((column) =>
+              column.actionItems?.length ? (
+                <span className="design-table-actions" key={column.key}>
+                  {column.actionItems.map((action) => (
+                    <b key={action}>{action}</b>
+                  ))}
+                </span>
+              ) : (
+                <span key={column.key}>{readableCell(row[column.key] ?? '-')}</span>
+              ),
+            )}
           </div>
         ))}
       </div>
     );
   }
 
-  const columns: ColumnsType<JsonRecord> = asArray<ColumnConfig>(node.props.columns, []).map((column) => ({
-    title:
-      context.mode === 'edit'
-        ? (context.inlineEdit?.arrayItemText({ node, arrayProp: 'columns', itemKey: column.key, labelKey: 'title', value: column.title }) ?? column.title)
-        : column.title,
+  const columns: ColumnsType<JsonRecord> = rawColumns.map((column) => ({
+    title: column.title,
     dataIndex: column.key,
     key: column.key,
-    render: (value) => String(value ?? ''),
-  }));
-
-  if (actions.length > 0) {
-    columns.push({
-      title: '操作',
-      key: 'actions',
-      render: (_, row, index) => (
+    render: (value, row) =>
+      column.actionItems?.length ? (
         <Space>
-          {actions.map((action) => (
+          {column.actionItems.map((action) => (
             <Button
               key={action}
               type="link"
-              danger={action.includes('删')}
+              danger={action.includes('删') || action.includes('删除')}
               onClick={(event) => {
                 event.stopPropagation();
                 if (context.mode === 'edit') {
@@ -66,28 +163,14 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
                 context.dispatch?.({ componentId: `${node.id}:${action}`, event: 'click', payload: { row, action } });
               }}
             >
-              {context.mode === 'edit'
-                ? (context.inlineEdit?.arrayItemText({ node, arrayProp: 'actions', itemKey: action, labelKey: '', value: action }) ?? action)
-                : action}
+              {action}
             </Button>
           ))}
-          <Button
-            type="link"
-            onClick={(event) => {
-              event.stopPropagation();
-              if (context.mode === 'edit') {
-                context.selectInteractionTarget?.(node.id);
-                return;
-              }
-              context.dispatch?.({ componentId: node.id, event: 'rowClick', payload: { row, rowIndex: index } });
-            }}
-          >
-            行点击
-          </Button>
         </Space>
+      ) : (
+        readableCell(value)
       ),
-    });
-  }
+  }));
 
   return (
     <Table

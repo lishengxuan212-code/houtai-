@@ -60,6 +60,12 @@ const renderers: Record<string, React.ComponentType<Props>> = {
   AmountText: PrototypeWidgetRenderer,
   NumericText: PrototypeWidgetRenderer,
   TimeText: PrototypeWidgetRenderer,
+  VisualBlock: PrototypeWidgetRenderer,
+  WhitePanel: PrototypeWidgetRenderer,
+  BadgePill: PrototypeWidgetRenderer,
+  HeaderBar: PrototypeWidgetRenderer,
+  SideNavBlock: PrototypeWidgetRenderer,
+  TableSkeleton: PrototypeWidgetRenderer,
   ...proComponentRenderers,
 };
 
@@ -77,9 +83,15 @@ export function RenderNode(props: Props) {
         }
       : undefined;
   const rendered = <Renderer {...props} />;
+  const runtimeDisabled = props.context.mode === 'preview' && props.context.isNodeDisabled?.(props.node.id);
+  const disabledStyle = runtimeDisabled ? { pointerEvents: 'none' as const, opacity: 0.65 } : undefined;
 
   return layoutStyle || compact ? (
-    <div className={`runtime-node-layout${compact ? ' compact' : ''}`} style={layoutStyle}>
+    <div className={`runtime-node-layout${compact ? ' compact' : ''}`} aria-disabled={runtimeDisabled || undefined} style={{ ...layoutStyle, ...disabledStyle }}>
+      {rendered}
+    </div>
+  ) : runtimeDisabled ? (
+    <div aria-disabled style={disabledStyle}>
       {rendered}
     </div>
   ) : (

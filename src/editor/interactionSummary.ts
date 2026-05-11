@@ -47,6 +47,18 @@ export function resultText(project: Project, action: Action): string {
       return `打开「${nodeName(project, action.targetNodeId)}」`;
     case 'closeModal':
       return `关闭「${nodeName(project, action.targetNodeId)}」`;
+    case 'showNode':
+      return `显示「${nodeName(project, action.targetNodeId)}」`;
+    case 'hideNode':
+      return `隐藏「${nodeName(project, action.targetNodeId)}」`;
+    case 'toggleNodeVisibility':
+      return `切换「${nodeName(project, action.targetNodeId)}」显示状态`;
+    case 'enableNode':
+      return `启用「${nodeName(project, action.targetNodeId)}」`;
+    case 'disableNode':
+      return `禁用「${nodeName(project, action.targetNodeId)}」`;
+    case 'toggleNodeDisabled':
+      return `切换「${nodeName(project, action.targetNodeId)}」启用状态`;
     case 'navigate':
       return `跳转到「${project.pages.find((page) => page.id === action.targetPageId)?.name ?? action.targetPageId}」`;
     case 'refreshData':
@@ -60,6 +72,7 @@ export function resultText(project: Project, action: Action): string {
     case 'setVariable':
       return '记住当前选择';
   }
+  return '执行交互动作';
 }
 
 export function triggerText(event: string): string {

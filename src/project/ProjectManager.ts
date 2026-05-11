@@ -12,6 +12,8 @@ export type CreateProjectOptions = {
   name: string;
   businessType: BusinessType;
   template: ProjectTemplateKind;
+  canvasWidth?: number;
+  canvasHeight?: number;
   templateSourceId?: string;
 };
 

@@ -4,14 +4,38 @@ import type { ComponentLibraryOverride } from '../registry/types/componentDefini
 
 const storageKey = 'admin-prototype-studio-component-library';
 
+export type RecentLibraryItemKind =
+  | 'antDesignComponent'
+  | 'proComponent'
+  | 'prototypeWidget'
+  | 'userComponent'
+  | 'componentPreset'
+  | 'componentTemplate'
+  | 'groupTemplate'
+  | 'pageTemplate';
+
+export type RecentLibraryItem = {
+  id: string;
+  kind: RecentLibraryItemKind;
+  sourceId: string;
+  name: string;
+  category?: string;
+  description?: string;
+  usedAt: string;
+  useCount: number;
+  favorite: boolean;
+};
+
 export type ComponentLibraryState = {
   overrides: Record<string, ComponentLibraryOverride>;
   presets: ComponentPreset[];
+  recent: RecentLibraryItem[];
 };
 
 const emptyState: ComponentLibraryState = {
   overrides: {},
   presets: [],
+  recent: [],
 };
 
 function canUseStorage(): boolean {
@@ -24,7 +48,7 @@ export function loadComponentLibraryState(): ComponentLibraryState {
   if (!raw) return structuredClone(emptyState);
   try {
     const parsed = JSON.parse(raw) as ComponentLibraryState;
-    return { overrides: parsed.overrides ?? {}, presets: parsed.presets ?? [] };
+    return { overrides: parsed.overrides ?? {}, presets: parsed.presets ?? [], recent: parsed.recent ?? [] };
   } catch {
     return structuredClone(emptyState);
   }

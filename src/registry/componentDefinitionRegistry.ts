@@ -5,11 +5,85 @@ import { floatButtonApiSchema } from './apiSchemas/floatButtonApiSchema';
 import { allDescriptors } from './descriptors';
 import { normalizeComponentDefinition } from './normalizers/normalizeComponentDefinition';
 import { mergeJsonRecords } from './normalizers/normalizeNodeProps';
-import type { ComponentDefaultOverrideOptions, ComponentDefaultOverrides, ComponentDefinition } from './types/componentDefinition';
+import type { ComponentDefaultOverrideOptions, ComponentDefaultOverrides, ComponentDefinition, ComponentGenerationRole, ComponentStyleCapability } from './types/componentDefinition';
 import type { PropSchemaGroup, PropSchemaField } from './types/propSchema';
 
 const descriptorByType = new Map(allDescriptors.map((descriptor) => [descriptor.type, descriptor]));
 const manifestByType = new Map(antdLibraryManifest.filter((component) => component.source !== 'pro-components' && component.source !== 'system').map((component) => [component.key, component]));
+const foundationTypes = new Set([
+  'PageContainer',
+  'Section',
+  'Card',
+  'Button',
+  'Input',
+  'Select',
+  'H1',
+  'H2',
+  'H3',
+  'BodyText',
+  'HelperText',
+  'LinkText',
+  'ErrorText',
+  'Annotation',
+  'StickyNote',
+  'ModuleTitle',
+  'PageTitle',
+  'StatusLabel',
+  'AmountText',
+  'NumericText',
+  'TimeText',
+  'Rectangle',
+  'Circle',
+  'Line',
+  'Arrow',
+  'ImageWidget',
+  'IconWidget',
+  'Placeholder',
+  'DividerWidget',
+  'HotZone',
+  'VisualBlock',
+  'WhitePanel',
+  'BadgePill',
+  'HeaderBar',
+  'SideNavBlock',
+  'TableSkeleton',
+]);
+
+function generationRoleFor(type: string): ComponentGenerationRole {
+  return foundationTypes.has(type) ? 'foundation' : 'enhancement';
+}
+
+function styleCapabilitiesFor(type: string): ComponentStyleCapability[] {
+  if (['H1', 'H2', 'H3', 'BodyText', 'HelperText', 'LinkText', 'ErrorText', 'Annotation', 'StickyNote', 'ModuleTitle', 'PageTitle', 'StatusLabel', 'AmountText', 'NumericText', 'TimeText'].includes(type)) {
+    return ['typography', 'color', 'background', 'border', 'borderRadius', 'padding', 'size'];
+  }
+  if (['WhitePanel', 'VisualBlock', 'Rectangle', 'HotZone', 'Card', 'Section'].includes(type)) {
+    return ['background', 'border', 'borderRadius', 'shadow', 'padding', 'size'];
+  }
+  if (['Button', 'Input', 'Select', 'BadgePill'].includes(type)) {
+    return ['background', 'border', 'borderRadius', 'typography', 'color', 'size'];
+  }
+  if (['TableSkeleton', 'HeaderBar', 'SideNavBlock'].includes(type)) {
+    return ['background', 'border', 'borderRadius', 'spacing', 'size'];
+  }
+  return ['size'];
+}
+
+function withGenerationCapabilities(definition: ComponentDefinition): ComponentDefinition {
+  const generationRole = definition.generationRole ?? generationRoleFor(definition.type);
+  return {
+    ...definition,
+    generationRole,
+    styleCapabilities: definition.styleCapabilities ?? styleCapabilitiesFor(definition.type),
+    description:
+      definition.description ??
+      (definition.type === 'TableSkeleton'
+        ? 'Foundation visual table block for screenshot-first page restoration before replacing it with a data table component.'
+        : generationRole === 'foundation'
+          ? 'Foundation node for AI-generated page structure and visual restoration.'
+          : 'Higher level component used to enhance, replace, or reuse a generated page region.'),
+  };
+}
 
 function field(path: string, label: string, editor: PropSchemaField['editor'], extra: Partial<PropSchemaField> = {}): PropSchemaField {
   return { path, label, editor, ...extra };
@@ -85,7 +159,7 @@ const floatButtonDefinitions: ComponentDefinition[] = [
   }),
 ];
 
-const tableRowsGroup: PropSchemaGroup = { key: 'rows', id: 'rows', title: '行数据', fields: [field('data.rows', '行数据', 'tableRows')] };
+const tableRowsGroup: PropSchemaGroup = { key: 'rows', id: 'rows', title: '行数据', fields: [field('rows', '行数据', 'tableRows')] };
 
 function heavyDefinition(input: {
   type: string;
@@ -482,11 +556,19 @@ function withS21Schemas(definition: ComponentDefinition): ComponentDefinition {
   return definition;
 }
 
-const definitions = [...new Map([...normalizedDefinitions, ...heavyComponentDefinitions, ...floatButtonDefinitions].map((definition) => [definition.type, withS21Schemas(definition)])).values()];
+const definitions = [...new Map([...normalizedDefinitions, ...heavyComponentDefinitions, ...floatButtonDefinitions].map((definition) => [definition.type, withGenerationCapabilities(withS21Schemas(definition))])).values()];
 const registry = new Map(definitions.map((definition) => [definition.type, definition]));
 
 export function listComponentDefinitions(): ComponentDefinition[] {
   return definitions.map((definition) => structuredClone(definition));
+}
+
+export function listFoundationComponentDefinitions(): ComponentDefinition[] {
+  return definitions.filter((definition) => definition.generationRole === 'foundation').map((definition) => structuredClone(definition));
+}
+
+export function isFoundationNode(type: string): boolean {
+  return registry.get(type)?.generationRole === 'foundation';
 }
 
 export function getComponentDefinition(type: string): ComponentDefinition | undefined {

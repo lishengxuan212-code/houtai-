@@ -162,6 +162,12 @@ export const antdLibraryManifest: LibraryComponentDescriptor[] = [
   item('其他', 'AmountText', 'amount text', { source: 'system', description: 'Prototype business text widget: amount text.', defaultProps: { content: '$12,580.00' }, editableProps: [textProp('content', 'Content')] }),
   item('其他', 'NumericText', 'numeric text', { source: 'system', description: 'Prototype business text widget: numeric text.', defaultProps: { content: '1280' }, editableProps: [textProp('content', 'Content')] }),
   item('其他', 'TimeText', 'time text', { source: 'system', description: 'Prototype business text widget: time text.', defaultProps: { content: '2026-05-07 14:30' }, editableProps: [textProp('content', 'Content')] }),
+  item('其他', 'VisualBlock', '视觉色块', { source: 'system', description: '用于截图复刻的基础色块。', defaultProps: { label: '视觉色块' } }),
+  item('其他', 'WhitePanel', '白色面板', { source: 'system', description: '用于还原后台页面卡片、弹层、内容面板。', defaultProps: { label: '白色面板' } }),
+  item('其他', 'BadgePill', '胶囊标签', { source: 'system', description: '用于还原状态、标签、筛选项。', defaultProps: { text: '状态标签' } }),
+  item('其他', 'HeaderBar', '顶部栏', { source: 'system', description: '用于还原后台顶部导航栏。', defaultProps: { title: '后台系统' } }),
+  item('其他', 'SideNavBlock', '侧边导航块', { source: 'system', description: '用于还原后台侧边菜单。', defaultProps: { title: '菜单', items: ['首页', '订单管理'] } }),
+  item('其他', 'TableSkeleton', '表格骨架', { source: 'system', description: '用于先视觉复刻表格行列，再逐步替换为可编辑表格。', defaultProps: { columns: 6, rows: 4 } }),
 
   item('重型组件', 'ProLayout', '高级布局', { source: 'pro-components', renderKind: 'pro', enabled: true, draggable: true, disabledReason: proDisabled }),
   item('重型组件', 'PageContainer', '高级页面容器', { source: 'pro-components', renderKind: 'pro', enabled: true, draggable: true, disabledReason: proDisabled }),

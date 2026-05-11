@@ -1,5 +1,6 @@
 import { Empty, Tabs, Typography } from 'antd';
 import { ComponentLibraryPanel } from '../components/ComponentLibraryPanel';
+import { RecentLibraryPanel } from '../library/RecentLibraryPanel';
 import { TemplateLibraryPanel } from '../templates/TemplateLibraryPanel';
 
 export function LibraryDockPanel() {
@@ -9,7 +10,8 @@ export function LibraryDockPanel() {
         size="small"
         defaultActiveKey="library"
         items={[
-          { key: 'library', label: '元件库', children: <ComponentLibraryPanel /> },
+          { key: 'library', label: '组件库', children: <ComponentLibraryPanel /> },
+          { key: 'recent', label: '最近使用', children: <RecentLibraryPanel /> },
           {
             key: 'masters',
             label: '母版',
