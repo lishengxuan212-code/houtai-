@@ -4,6 +4,7 @@ import { assertDescriptor } from './componentRegistry';
 import { getComponentDefinition, getResolvedDefaultProps } from './componentDefinitionRegistry';
 import { getComponentDefaultOverrides } from '../store/componentLibraryStore';
 import { generateRowsFromColumns } from '../editor/inspector/editors/tableRowsUtils';
+import { componentLabel } from './componentLabels';
 
 function defaultDataForNode(type: string, props: JsonRecord, definitionDefaultData: JsonRecord | undefined): JsonRecord | undefined {
   if (type !== 'Table') return definitionDefaultData ? structuredClone(definitionDefaultData) : undefined;
@@ -25,7 +26,7 @@ export function createNode(type: string, props: JsonRecord = {}): ComponentNode 
   return {
     id: createId(type.toLowerCase()),
     type,
-    name: definition?.nameZh ?? descriptor!.displayName,
+    name: componentLabel(type) || definition?.nameZh || descriptor!.displayName,
     props: nextProps,
     ...(definition?.defaultContent ? { content: structuredClone(definition.defaultContent) } : {}),
     ...(defaultData ? { data: defaultData } : {}),

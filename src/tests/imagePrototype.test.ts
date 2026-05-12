@@ -64,6 +64,32 @@ describe('image prototype generation', () => {
     expect(inserted.some((node) => node.type === 'TableSkeleton')).toBe(true);
   });
 
+  it('falls back to the current page frame when the selected frame id is stale', () => {
+    const page = initialProject.pages[0]!;
+    const next = applyImagePrototypePlan(initialProject, page.id, 'stale_frame_from_other_page', {
+      title: '失效画板',
+      summary: '生成时当前画板 id 不属于当前页面。',
+      nodes: [{ type: 'Button', name: '查询按钮', props: { text: '查询' }, x: 40, y: 80, width: 120, height: 36 }],
+    });
+    const inserted = Object.values(next.pages[0]!.nodes).find((node) => !initialProject.pages[0]!.nodes[node.id]);
+
+    expect(next.pages[0]!.frames?.map((frame) => frame.id)).not.toContain('stale_frame_from_other_page');
+    expect(inserted?.canvas?.parentFrameId).toBe(next.pages[0]!.frames?.[0]?.id);
+  });
+
+  it('materializes generated text JSON into the text prop used by renderers', () => {
+    const page = initialProject.pages[0]!;
+    const next = applyImagePrototypePlan(initialProject, page.id, page.frames?.[0]?.id, {
+      title: '文字展示',
+      summary: '模型返回 text 字段时也要展示到文字组件。',
+      nodes: [{ type: 'PageTitle', name: '页面标题', props: { text: '活动配置中心' }, x: 40, y: 32, width: 260, height: 44 }],
+    });
+
+    const inserted = Object.values(next.pages[0]!.nodes).find((node) => !initialProject.pages[0]!.nodes[node.id]);
+
+    expect(inserted).toMatchObject({ type: 'PageTitle', props: { content: '活动配置中心' } });
+  });
+
   it('expands tiny generated components to readable canvas sizes', () => {
     const page = initialProject.pages[0]!;
     const next = applyImagePrototypePlan(initialProject, page.id, page.frames?.[0]?.id, {

@@ -1,6 +1,6 @@
 import { getNextFrameZIndex } from '../domain/canvas';
 import { createId } from '../domain/ids';
-import type { ComponentNode, JsonRecord, Page, Project } from '../domain/types';
+import type { ComponentNode, JsonRecord, Operation, Page, Project } from '../domain/types';
 import { createNode } from '../registry/createNode';
 
 export type ImageTextItem = {
@@ -201,8 +201,8 @@ function buildListPlan(analysis: ImagePrototypeAnalysis): ImagePrototypePlan {
         props: { label: field.label, placeholder: `请输入${field.label}`, fieldKey: field.key, ...(type === 'Select' ? { options: field.options ?? ['全部', '启用', '停用'] } : {}) },
         x: box.x + 24 + index * 220,
         y: box.y + 28,
-        width: 188,
-        height: 36,
+        width: 220,
+        height: 72,
       });
     });
     componentCandidates.push({ id: 'candidate_search_bar', targetType: 'SearchBar', sourceNodeIds: ['visual_search_panel', ...fields.map((_, index) => `visual_search_field_${index + 1}`)], reason: '查询区域由输入项组成，可替换为统一查询组件。', confidence: 0.78 });
@@ -254,9 +254,9 @@ function minimumNodeSize(item: ImagePrototypePlan['nodes'][number]) {
       return { width: Math.max(72, textWidth(item.props.text ?? item.props.label, item.name) + 28), height: 28 };
     case 'Input':
     case 'Select':
-      return { width: 180, height: 36 };
+      return { width: 220, height: 72 };
     case 'SearchBar':
-      return { width: 560, height: 88 };
+      return { width: 640, height: 128 };
     case 'Table':
     case 'TableSkeleton': {
       const columnCount = Math.max(arrayLength(item.props.columns), arrayLength(item.props.fields), 4);
@@ -285,6 +285,41 @@ function readableCanvasBox(item: ImagePrototypePlan['nodes'][number]) {
   };
 }
 
+function sourceBounds(nodes: ComponentNode[]) {
+  const canvases = nodes.map((node) => node.canvas).filter((canvas): canvas is NonNullable<ComponentNode['canvas']> => Boolean(canvas));
+  if (canvases.length === 0) return undefined;
+  const left = Math.min(...canvases.map((canvas) => canvas.x));
+  const top = Math.min(...canvases.map((canvas) => canvas.y));
+  const right = Math.max(...canvases.map((canvas) => canvas.x + canvas.width));
+  const bottom = Math.max(...canvases.map((canvas) => canvas.y + canvas.height));
+  const parentFrameId = canvases.find((canvas) => canvas.parentFrameId)?.parentFrameId;
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+    zIndex: Math.max(...canvases.map((canvas) => canvas.zIndex)),
+    ...(parentFrameId ? { parentFrameId } : {}),
+  };
+}
+
+function searchFieldsFromNodes(nodes: ComponentNode[]) {
+  return nodes
+    .filter((node) => node.type === 'Input' || node.type === 'Select')
+    .map((node, index) => ({
+      key: typeof node.props.fieldKey === 'string' ? node.props.fieldKey : `field_${index + 1}`,
+      label: typeof node.props.label === 'string' ? node.props.label : node.name,
+      type: node.type === 'Select' ? 'select' : 'text',
+      ...(Array.isArray(node.props.options) ? { options: node.props.options } : {}),
+    }));
+}
+
+function tableColumnsFromSkeleton(nodes: ComponentNode[]) {
+  const skeleton = nodes.find((node) => node.type === 'TableSkeleton');
+  const count = typeof skeleton?.props.columns === 'number' ? Math.max(1, Math.round(skeleton.props.columns)) : 4;
+  return Array.from({ length: count }, (_, index) => ({ key: `col_${index + 1}`, title: `字段${index + 1}` }));
+}
+
 export function inferImagePrototypePlan(analysis: ImagePrototypeAnalysis): ImagePrototypePlan {
   const text = normalizeText(analysis.text);
   const regions = analysis.regions ?? [];
@@ -299,19 +334,57 @@ export function inferImagePrototypePlan(analysis: ImagePrototypeAnalysis): Image
 }
 
 function materializeNode(item: ImagePrototypePlan['nodes'][number], frameId: string, zIndex: number): ComponentNode {
-  const node = createNode(item.type, item.props);
+  const props = { ...item.props };
+  if (typeof props.text === 'string' && props.content === undefined && ['H1', 'H2', 'H3', 'BodyText', 'HelperText', 'LinkText', 'ErrorText', 'Annotation', 'StickyNote', 'ModuleTitle', 'PageTitle', 'StatusLabel', 'AmountText', 'NumericText', 'TimeText'].includes(item.type)) {
+    props.content = props.text;
+  }
+  const node = createNode(item.type, props);
   const box = readableCanvasBox(item);
-  node.id = createId(`image_${item.type.toLowerCase()}`);
+  node.id = item.id ?? createId(`image_${item.type.toLowerCase()}`);
   node.name = item.name;
   node.canvas = { x: box.x, y: box.y, width: box.width, height: box.height, zIndex, parentFrameId: frameId };
   node.semantic = { moduleName: item.name, moduleType: item.type === 'PageTitle' ? 'pageHeader' : 'module' };
   return node;
 }
 
+export function createImageComponentCandidateOperation(project: Project, pageId: string, plan: ImagePrototypePlan, candidateId: string): Operation | undefined {
+  const page = project.pages.find((item) => item.id === pageId);
+  const candidate = plan.componentCandidates?.find((item) => item.id === candidateId);
+  if (!page || !candidate) return undefined;
+  const sourceNodes = candidate.sourceNodeIds.map((nodeId) => page.nodes[nodeId]).filter((node): node is ComponentNode => Boolean(node));
+  if (sourceNodes.length === 0) return undefined;
+  const bounds = sourceBounds(sourceNodes);
+  if (!bounds) return undefined;
+
+  const props =
+    candidate.targetType === 'SearchBar'
+      ? { fields: searchFieldsFromNodes(sourceNodes), submitText: '查询' }
+      : candidate.targetType === 'Table'
+        ? { columns: tableColumnsFromSkeleton(sourceNodes), actions: ['详情'] }
+        : {};
+  const replacement = createNode(candidate.targetType, props);
+  replacement.id = createId(`candidate_${candidate.targetType.toLowerCase().replace(/[^a-z0-9]+/gi, '_')}`);
+  replacement.name = candidate.targetType === 'SearchBar' ? '查询条件' : candidate.targetType === 'Table' ? '数据列表' : replacement.name;
+  replacement.canvas = bounds;
+  replacement.semantic = {
+    moduleName: replacement.name,
+    moduleType: candidate.targetType === 'SearchBar' ? 'search' : candidate.targetType === 'Table' ? 'table' : 'component',
+    description: candidate.reason,
+  };
+
+  return {
+    type: 'replaceNodesWithComponent',
+    pageId,
+    sourceNodeIds: candidate.sourceNodeIds,
+    node: replacement,
+  };
+}
+
 export function applyImagePrototypePlan(project: Project, pageId: string, frameId: string | undefined, plan: ImagePrototypePlan): Project {
   const draft = structuredClone(project);
   const page = draft.pages.find((item) => item.id === pageId);
-  const targetFrameId = frameId ?? page?.frames?.[0]?.id ?? createId('frame');
+  const existingFrame = page?.frames?.find((frame) => frame.id === frameId) ?? page?.frames?.[0];
+  const targetFrameId = existingFrame?.id ?? createId('frame');
   const root = page ? page.nodes[page.rootNodeId] : undefined;
   if (!page || !root?.children) return draft;
   if (!page.frames?.some((frame) => frame.id === targetFrameId)) {

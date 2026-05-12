@@ -9,12 +9,14 @@ import {
   moveNodeBackwardByZIndex,
   moveNodeForwardByZIndex,
   sendNodeToBackByZIndex,
+  sortNodesByZIndex,
   type CanvasAlignment,
   type DistributionDirection,
 } from '../domain/canvas';
 import type { CreateProjectOptions } from '../project/ProjectManager';
 import { createProjectFromTemplate, deleteProject as deleteProjectRecordById, openProject as openProjectRecord, renameProject as renameProjectRecordById, saveProjectRecord as saveProjectRecordById } from '../project/ProjectManager';
 import { createNode } from '../registry/createNode';
+import { getComponentDefaultCanvas } from './componentLibraryStore';
 import { loadProject, saveProject, scheduleProjectSave } from './persistence';
 import { initialProject } from './initialProject';
 import { incrementMetric, measureMetric } from '../editor/performance/performanceMetrics';
@@ -63,6 +65,7 @@ type ProjectStore = {
   groupSelectedNodes: () => void;
   ungroupSelectedNode: () => void;
   moveSelectedNode: (direction: 'up' | 'down') => void;
+  moveSelectedCanvasBy: (anchorNodeId: string, deltaX: number, deltaY: number) => void;
   reorderNode: (nodeId: string, targetNodeId: string, position?: 'before' | 'after') => void;
   reorderNodeToIndex: (nodeId: string, parentNodeId: string, targetIndex: number) => void;
   moveNodeToParent: (nodeId: string, newParentNodeId: string) => void;
@@ -84,6 +87,50 @@ function persist(project: Project) {
 function persistLater(project: Project) {
   scheduleProjectSave(project);
   return project;
+}
+
+function selectedEditableNodeIds(state: ProjectStore, page: NonNullable<ReturnType<typeof getPage>>) {
+  const selected = state.selectedNodeIds.length ? state.selectedNodeIds : state.selectedNodeId ? [state.selectedNodeId] : [];
+  const selectedSet = new Set(selected);
+  return selected.filter((nodeId) => {
+    const node = page.nodes[nodeId];
+    if (!node || nodeId === page.rootNodeId) return false;
+    let parent = findParentNode(page, nodeId);
+    while (parent) {
+      if (selectedSet.has(parent.id)) return false;
+      parent = findParentNode(page, parent.id);
+    }
+    return true;
+  });
+}
+
+function layerOrderWithMovedSelection(page: NonNullable<ReturnType<typeof getPage>>, frameId: string, selectedNodeIds: string[], direction: 'forward' | 'backward') {
+  const selectedSet = new Set(selectedNodeIds);
+  const layers = sortNodesByZIndex(Object.values(page.nodes).filter((node) => node.id !== page.rootNodeId && node.canvas?.parentFrameId === frameId));
+  const selected = selectedNodeIds.filter((nodeId) => layers.some((node) => node.id === nodeId));
+  if (selected.length === 0) return [];
+  const firstIndex = layers.findIndex((node) => selectedSet.has(node.id));
+  let lastIndex = -1;
+  for (let index = layers.length - 1; index >= 0; index -= 1) {
+    if (selectedSet.has(layers[index]!.id)) {
+      lastIndex = index;
+      break;
+    }
+  }
+  if (direction === 'forward') {
+    const next = layers.slice(lastIndex + 1).find((node) => !selectedSet.has(node.id));
+    if (!next) return [];
+    return layers.filter((node) => !selectedSet.has(node.id)).flatMap((node) => (node.id === next.id ? [node.id, ...selected] : [node.id]));
+  }
+  let previous = undefined as (typeof layers)[number] | undefined;
+  for (let index = firstIndex - 1; index >= 0; index -= 1) {
+    if (!selectedSet.has(layers[index]!.id)) {
+      previous = layers[index];
+      break;
+    }
+  }
+  if (!previous) return [];
+  return layers.filter((node) => !selectedSet.has(node.id)).flatMap((node) => (node.id === previous.id ? [...selected, node.id] : [node.id]));
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => {
@@ -193,12 +240,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       if (!parent) return;
       const node = createNode(type);
       const frameId = state.currentFrameId ?? page.frames?.[0]?.id;
+      const defaultCanvas = getComponentDefaultCanvas(type);
       if (frameId) {
         node.canvas = {
           x: node.canvas?.x ?? node.layout?.x ?? 0,
           y: node.canvas?.y ?? node.layout?.y ?? 0,
-          width: node.canvas?.width ?? node.layout?.width ?? 180,
-          height: node.canvas?.height ?? node.layout?.height ?? 80,
+          width: node.canvas?.width ?? node.layout?.width ?? defaultCanvas?.width ?? 180,
+          height: node.canvas?.height ?? node.layout?.height ?? defaultCanvas?.height ?? 80,
           zIndex: getNextFrameZIndex(page, frameId),
           ...(node.canvas?.locked !== undefined ? { locked: node.canvas.locked } : {}),
           ...(node.canvas?.hidden !== undefined ? { hidden: node.canvas.hidden } : {}),
@@ -215,12 +263,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       const parent = page?.nodes[parentNodeId];
       if (!page || !parent?.children) return;
       const node = createNode(type);
+      const defaultCanvas = getComponentDefaultCanvas(type);
       if (canvas) {
         node.canvas = {
           x: canvas.x ?? 0,
           y: canvas.y ?? 0,
-          width: canvas.width ?? node.layout?.width ?? 180,
-          height: canvas.height ?? node.layout?.height ?? 80,
+          width: canvas.width ?? node.layout?.width ?? defaultCanvas?.width ?? 180,
+          height: canvas.height ?? node.layout?.height ?? defaultCanvas?.height ?? 80,
           zIndex: canvas.zIndex ?? (canvas.parentFrameId ? getNextFrameZIndex(page, canvas.parentFrameId) : 0),
           ...(canvas.locked !== undefined ? { locked: canvas.locked } : {}),
           ...(canvas.hidden !== undefined ? { hidden: canvas.hidden } : {}),
@@ -259,10 +308,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     deleteSelectedNode: () => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
-      if (!page || !state.selectedNodeId || state.selectedNodeId === page.rootNodeId) return;
-      const parent = findParentNode(page, state.selectedNodeId);
-      state.apply({ type: 'deleteNode', pageId: page.id, nodeId: state.selectedNodeId });
-      const nextSelectedNodeId = parent?.id ?? page.rootNodeId;
+      if (!page) return;
+      const nodeIds = selectedEditableNodeIds(state, page);
+      if (nodeIds.length === 0) return;
+      const parent = findParentNode(page, nodeIds[0]!);
+      commitOperations(nodeIds.map((nodeId) => ({ type: 'deleteNode', pageId: page.id, nodeId })));
+      const nextSelectedNodeId = parent?.id && page.nodes[parent.id] ? parent.id : page.rootNodeId;
       set({ selectedNodeId: nextSelectedNodeId, selectedNodeIds: [nextSelectedNodeId] });
     },
     copySelectedNodes: () => {
@@ -354,34 +405,80 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     bringSelectedToFront: () => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
-      if (!page || !state.selectedNodeId || state.selectedNodeId === page.rootNodeId) return;
-      const frameId = page.nodes[state.selectedNodeId]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
+      if (!page) return;
+      const nodeIds = selectedEditableNodeIds(state, page);
+      if (nodeIds.length === 0) return;
+      const frameId = page.nodes[nodeIds[0]!]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
       if (!frameId) return;
-      commitOperations(bringNodeToFrontByZIndex(page, state.selectedNodeId, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+      const selectedInFrame = nodeIds.filter((nodeId) => page.nodes[nodeId]?.canvas?.parentFrameId === frameId);
+      if (selectedInFrame.length === 1) {
+        commitOperations(bringNodeToFrontByZIndex(page, selectedInFrame[0]!, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+        return;
+      }
+      let zIndex = Math.max(0, ...Object.values(page.nodes).filter((node) => node.canvas?.parentFrameId === frameId).map((node) => node.canvas?.zIndex ?? 0)) + 1;
+      commitOperations(
+        sortNodesByZIndex(selectedInFrame.map((nodeId) => page.nodes[nodeId]).filter((node): node is NonNullable<typeof node> => Boolean(node))).map((node) => ({
+          type: 'updateNodeCanvas',
+          pageId: page.id,
+          nodeId: node.id,
+          canvas: { zIndex: zIndex++, parentFrameId: frameId },
+        })),
+      );
     },
     sendSelectedToBack: () => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
-      if (!page || !state.selectedNodeId || state.selectedNodeId === page.rootNodeId) return;
-      const frameId = page.nodes[state.selectedNodeId]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
+      if (!page) return;
+      const nodeIds = selectedEditableNodeIds(state, page);
+      if (nodeIds.length === 0) return;
+      const frameId = page.nodes[nodeIds[0]!]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
       if (!frameId) return;
-      commitOperations(sendNodeToBackByZIndex(page, state.selectedNodeId, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+      const selectedInFrame = nodeIds.filter((nodeId) => page.nodes[nodeId]?.canvas?.parentFrameId === frameId);
+      if (selectedInFrame.length === 1) {
+        commitOperations(sendNodeToBackByZIndex(page, selectedInFrame[0]!, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+        return;
+      }
+      let zIndex = Math.min(0, ...Object.values(page.nodes).filter((node) => node.canvas?.parentFrameId === frameId).map((node) => node.canvas?.zIndex ?? 0)) - selectedInFrame.length;
+      commitOperations(
+        sortNodesByZIndex(selectedInFrame.map((nodeId) => page.nodes[nodeId]).filter((node): node is NonNullable<typeof node> => Boolean(node))).map((node) => ({
+          type: 'updateNodeCanvas',
+          pageId: page.id,
+          nodeId: node.id,
+          canvas: { zIndex: zIndex++, parentFrameId: frameId },
+        })),
+      );
     },
     moveSelectedForward: () => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
-      if (!page || !state.selectedNodeId || state.selectedNodeId === page.rootNodeId) return;
-      const frameId = page.nodes[state.selectedNodeId]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
+      if (!page) return;
+      const nodeIds = selectedEditableNodeIds(state, page);
+      if (nodeIds.length === 0) return;
+      const frameId = page.nodes[nodeIds[0]!]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
       if (!frameId) return;
-      commitOperations(moveNodeForwardByZIndex(page, state.selectedNodeId, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+      const selectedInFrame = nodeIds.filter((nodeId) => page.nodes[nodeId]?.canvas?.parentFrameId === frameId);
+      if (selectedInFrame.length === 1) {
+        commitOperations(moveNodeForwardByZIndex(page, selectedInFrame[0]!, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+        return;
+      }
+      const orderedNodeIds = layerOrderWithMovedSelection(page, frameId, selectedInFrame, 'forward');
+      if (orderedNodeIds.length) state.apply({ type: 'updateNodeLayerOrder', pageId: page.id, frameId, orderedNodeIds });
     },
     moveSelectedBackward: () => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
-      if (!page || !state.selectedNodeId || state.selectedNodeId === page.rootNodeId) return;
-      const frameId = page.nodes[state.selectedNodeId]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
+      if (!page) return;
+      const nodeIds = selectedEditableNodeIds(state, page);
+      if (nodeIds.length === 0) return;
+      const frameId = page.nodes[nodeIds[0]!]?.canvas?.parentFrameId ?? state.currentFrameId ?? page.frames?.[0]?.id;
       if (!frameId) return;
-      commitOperations(moveNodeBackwardByZIndex(page, state.selectedNodeId, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+      const selectedInFrame = nodeIds.filter((nodeId) => page.nodes[nodeId]?.canvas?.parentFrameId === frameId);
+      if (selectedInFrame.length === 1) {
+        commitOperations(moveNodeBackwardByZIndex(page, selectedInFrame[0]!, frameId).map((patch) => ({ type: 'updateNodeCanvas', pageId: page.id, nodeId: patch.nodeId, canvas: { zIndex: patch.zIndex, parentFrameId: frameId } })));
+        return;
+      }
+      const orderedNodeIds = layerOrderWithMovedSelection(page, frameId, selectedInFrame, 'backward');
+      if (orderedNodeIds.length) state.apply({ type: 'updateNodeLayerOrder', pageId: page.id, frameId, orderedNodeIds });
     },
     reorderLayerStack: (orderedNodeIds, frameId) => {
       const state = get();
@@ -444,6 +541,30 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       if (!parent) return;
       state.apply({ type: 'moveNode', pageId: page.id, parentNodeId: parent.id, nodeId: state.selectedNodeId, direction });
     },
+    moveSelectedCanvasBy: (anchorNodeId, deltaX, deltaY) => {
+      const state = get();
+      const page = getPage(state.project, state.currentPageId);
+      if (!page || (deltaX === 0 && deltaY === 0)) return;
+      const anchorFrameId = page.nodes[anchorNodeId]?.canvas?.parentFrameId;
+      const nodeIds = selectedEditableNodeIds(state, page).filter((nodeId) => {
+        const canvas = page.nodes[nodeId]?.canvas;
+        return canvas && !canvas.locked && (!anchorFrameId || canvas.parentFrameId === anchorFrameId);
+      });
+      if (nodeIds.length === 0) return;
+      commitOperations(
+        nodeIds.map((nodeId) => {
+          const canvas = page.nodes[nodeId]!.canvas!;
+          const nextCanvas: Partial<NodeCanvasConfig> = { x: canvas.x + deltaX, y: canvas.y + deltaY };
+          if (canvas.parentFrameId) nextCanvas.parentFrameId = canvas.parentFrameId;
+          return {
+            type: 'updateNodeCanvas',
+            pageId: page.id,
+            nodeId,
+            canvas: nextCanvas,
+          };
+        }),
+      );
+    },
     reorderNode: (nodeId, targetNodeId, position) => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
@@ -493,10 +614,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       saveProject(project);
       const page = project.pages.find((item) => item.id === currentPageId) ?? project.pages[0];
       const nextSelectedNodeId = selectedNodeId && page?.nodes[selectedNodeId] ? selectedNodeId : page?.rootNodeId;
+      const selectedFrameId = nextSelectedNodeId ? page?.nodes[nextSelectedNodeId]?.canvas?.parentFrameId : undefined;
       set({
         project,
         currentPageId: page?.id ?? initialProject.pages[0]!.id,
-        currentFrameId: page?.frames?.[0]?.id,
+        currentFrameId: selectedFrameId ?? page?.frames?.[0]?.id,
         selectedNodeId: nextSelectedNodeId,
         selectedNodeIds: nextSelectedNodeId ? [nextSelectedNodeId] : [],
         pastProjects: [],
@@ -510,10 +632,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
         persistLater(project);
         const page = project.pages.find((item) => item.id === currentPageId) ?? project.pages[0];
         const nextSelectedNodeId = selectedNodeId && page?.nodes[selectedNodeId] ? selectedNodeId : page?.rootNodeId;
+        const selectedFrameId = nextSelectedNodeId ? page?.nodes[nextSelectedNodeId]?.canvas?.parentFrameId : undefined;
         return {
           project,
           currentPageId: page?.id ?? state.currentPageId,
-          currentFrameId: page?.frames?.[0]?.id,
+          currentFrameId: selectedFrameId ?? page?.frames?.[0]?.id,
           selectedNodeId: nextSelectedNodeId,
           selectedNodeIds: nextSelectedNodeId ? [nextSelectedNodeId] : [],
           pastProjects: [...state.pastProjects, state.project].slice(-50),

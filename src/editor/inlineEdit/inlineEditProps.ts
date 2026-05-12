@@ -29,3 +29,11 @@ export function patchArrayItemLabel(
   });
   return changed ? { [arrayProp]: next as JsonValue } : {};
 }
+
+export function patchTableCell(rows: JsonValue | undefined, rowIndex: number, columnKey: string, value: string): JsonRecord[] {
+  const rowItems = Array.isArray(rows) ? rows : [];
+  return rowItems.map((row, index) => {
+    if (index !== rowIndex || !isEditableItem(row)) return isEditableItem(row) ? row : {};
+    return { ...row, [columnKey]: value };
+  });
+}

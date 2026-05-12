@@ -1,3 +1,5 @@
+import { getComponentDisplayName } from '../store/componentLibraryStore';
+
 const componentLabels: Record<string, string> = {
   PageContainer: '页面容器',
   Section: '区块',
@@ -51,5 +53,5 @@ const componentLabels: Record<string, string> = {
 };
 
 export function componentLabel(type: string): string {
-  return componentLabels[type] ?? type;
+  return getComponentDisplayName(type, componentLabels[type] ?? type);
 }

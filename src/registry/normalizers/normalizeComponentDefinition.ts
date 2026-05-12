@@ -13,11 +13,25 @@ const editorByControl: Record<EditableProp['control'], PropSchemaField['editor']
   json: 'json',
 };
 
+function editorForEditableProp(prop: EditableProp): PropSchemaField['editor'] {
+  if (prop.control !== 'json') return editorByControl[prop.control];
+  if (prop.key === 'columns') return 'tableColumns';
+  if (prop.key === 'rows' || prop.key === 'data') return 'tableRows';
+  if (prop.key === 'fields') return 'formFields';
+  if (prop.key === 'options') return 'options';
+  if (prop.key === 'items') return 'menuItems';
+  if (prop.key === 'tabs') return 'tabsItems';
+  if (prop.key === 'steps') return 'stepsItems';
+  if (prop.key === 'treeData') return 'treeData';
+  if (prop.key === 'actions') return 'actions';
+  return 'advancedJson';
+}
+
 function fieldFromEditableProp(prop: EditableProp, defaultProps: JsonRecord): PropSchemaField {
   const base = {
     path: `props.${prop.key}`,
     label: prop.label,
-    editor: editorByControl[prop.control],
+    editor: editorForEditableProp(prop),
     control: prop.control,
     defaultValue: cloneJson(defaultProps[prop.key] ?? null),
   };

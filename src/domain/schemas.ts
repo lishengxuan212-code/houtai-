@@ -244,6 +244,7 @@ export const OperationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('updateNodeEvents'), pageId: z.string(), nodeId: z.string(), events: z.record(z.string(), JsonRecordSchema) }),
   z.object({ type: z.literal('updateNodeSemantic'), pageId: z.string(), nodeId: z.string(), semantic: ComponentSemanticSchema }),
   z.object({ type: z.literal('updateNodeRuntime'), pageId: z.string(), nodeId: z.string(), runtime: ComponentRuntimeSchema }),
+  z.object({ type: z.literal('replaceNodesWithComponent'), pageId: z.string(), sourceNodeIds: z.array(z.string()), node: ComponentNodeSchema }),
   z.object({
     type: z.literal('cloneNodes'),
     pageId: z.string(),

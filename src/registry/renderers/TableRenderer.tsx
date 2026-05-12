@@ -133,7 +133,9 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
                   ))}
                 </span>
               ) : (
-                <span key={column.key}>{readableCell(row[column.key] ?? '-')}</span>
+                <span key={column.key}>
+                  {context.inlineEdit?.tableCellText?.({ node, rowIndex: index, columnKey: column.key, value: readableCell(row[column.key] ?? '-') }) ?? readableCell(row[column.key] ?? '-')}
+                </span>
               ),
             )}
           </div>

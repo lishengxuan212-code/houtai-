@@ -9,6 +9,14 @@ describe('schema contracts', () => {
     expect(OperationSchema.parse({ type: 'updateNodeRuntime', pageId: 'page', nodeId: 'node', runtime: { initialVisible: true, initialDisabled: false } }).type).toBe('updateNodeRuntime');
     expect(OperationSchema.parse({ type: 'reorderNodeToIndex', pageId: 'page', parentNodeId: 'parent', nodeId: 'node', targetIndex: 1 }).type).toBe('reorderNodeToIndex');
     expect(OperationSchema.parse({ type: 'reorderNode', pageId: 'page', parentNodeId: 'parent', nodeId: 'node', targetNodeId: 'target', position: 'after' })).toMatchObject({ position: 'after' });
+    expect(
+      OperationSchema.parse({
+        type: 'replaceNodesWithComponent',
+        pageId: 'page',
+        sourceNodeIds: ['visual_panel', 'visual_field'],
+        node: { id: 'search_bar', type: 'SearchBar', name: '查询条件', props: {}, canvas: { x: 10, y: 20, width: 480, height: 88, zIndex: 2 } },
+      }).type,
+    ).toBe('replaceNodesWithComponent');
   });
 
   it('parses full container layout options', () => {

@@ -28,12 +28,16 @@ export type RecentLibraryItem = {
 
 export type ComponentLibraryState = {
   overrides: Record<string, ComponentLibraryOverride>;
+  nameOverrides: Record<string, string>;
+  canvasOverrides: Record<string, { width: number; height: number }>;
   presets: ComponentPreset[];
   recent: RecentLibraryItem[];
 };
 
 const emptyState: ComponentLibraryState = {
   overrides: {},
+  nameOverrides: {},
+  canvasOverrides: {},
   presets: [],
   recent: [],
 };
@@ -48,7 +52,13 @@ export function loadComponentLibraryState(): ComponentLibraryState {
   if (!raw) return structuredClone(emptyState);
   try {
     const parsed = JSON.parse(raw) as ComponentLibraryState;
-    return { overrides: parsed.overrides ?? {}, presets: parsed.presets ?? [], recent: parsed.recent ?? [] };
+    return {
+      overrides: parsed.overrides ?? {},
+      nameOverrides: parsed.nameOverrides ?? {},
+      canvasOverrides: parsed.canvasOverrides ?? {},
+      presets: parsed.presets ?? [],
+      recent: parsed.recent ?? [],
+    };
   } catch {
     return structuredClone(emptyState);
   }

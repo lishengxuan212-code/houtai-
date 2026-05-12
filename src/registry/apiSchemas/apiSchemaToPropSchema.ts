@@ -36,7 +36,7 @@ function groupsFromProps(props: ComponentApiProp[], groups: ComponentApiPropGrou
       key: group,
       id: group,
       title: group,
-      fields: props.filter((prop) => prop.editable && prop.group === group && !prop.deprecated).map(fieldFromApiProp),
+      fields: props.filter((prop) => prop.editable && prop.group === group).map(fieldFromApiProp),
     }))
     .filter((group) => group.fields.length > 0);
 }

@@ -1,4 +1,4 @@
-import { Button, Empty, List, Space, Tag, Tooltip, Typography } from 'antd';
+import { Button, Empty, Tooltip, Typography } from 'antd';
 import { useState } from 'react';
 import { antdLibraryManifest } from '../../registry/antdManifest';
 import {
@@ -12,22 +12,17 @@ import { useProjectStore } from '../../store/projectStore';
 import { componentPresetToTemplate } from '../../templates/templateOperations';
 import { listUserTemplates } from '../../templates/templateStorage';
 import { useTemplateActions } from '../templates/useTemplateActions';
-
-const kindLabels = {
-  antDesignComponent: 'Ant Design',
-  proComponent: 'ProComponents',
-  prototypeWidget: '原型组件',
-  userComponent: '用户组件',
-  componentPreset: '组件预设',
-  componentTemplate: '组件模板',
-  groupTemplate: '组合模板',
-  pageTemplate: '页面模板',
-};
+import { AntdComponentStaticPreview } from '../../registry/antdPreviewRenderers';
 
 function componentLabel(sourceId: string): string {
   const key = sourceId.startsWith('pro.') ? sourceId.slice(4) : sourceId;
   const descriptor = antdLibraryManifest.find((item) => item.key === key && (sourceId.startsWith('pro.') ? item.source === 'pro-components' : item.source !== 'pro-components'));
   return descriptor?.nameZh ?? sourceId;
+}
+
+function componentDescriptor(sourceId: string) {
+  const key = sourceId.startsWith('pro.') ? sourceId.slice(4) : sourceId;
+  return antdLibraryManifest.find((item) => item.key === key && (sourceId.startsWith('pro.') ? item.source === 'pro-components' : item.source !== 'pro-components'));
 }
 
 export function RecentLibraryPanel() {
@@ -76,14 +71,14 @@ export function RecentLibraryPanel() {
         </Button>
       </div>
       {items.length === 0 ? <Empty description="暂无最近使用" /> : null}
-      <List
-        size="small"
-        dataSource={items}
-        renderItem={(item) => (
-          <List.Item
-            actions={[
-              <Tooltip key="favorite" title={item.favorite ? '取消收藏' : '收藏'}>
+      <div className="recent-icon-grid">
+        {items.map((item) => {
+          const descriptor = componentDescriptor(item.sourceId);
+          return (
+            <div className="recent-icon-tile" key={item.id}>
+              <Tooltip title={item.favorite ? '取消收藏' : '收藏'}>
                 <Button
+                  className="recent-favorite"
                   size="small"
                   type="text"
                   onClick={(event) => {
@@ -94,24 +89,15 @@ export function RecentLibraryPanel() {
                 >
                   {item.favorite ? '★' : '☆'}
                 </Button>
-              </Tooltip>,
-              <Button key="reuse" size="small" onClick={() => reuse(item)}>
-                使用
-              </Button>,
-            ]}
-          >
-            <Space direction="vertical" size={2}>
-              <Typography.Text strong>{item.name}</Typography.Text>
-              <Space size={4} wrap>
-                <Tag>{kindLabels[item.kind]}</Tag>
-                {item.category ? <Tag>{item.category}</Tag> : null}
-                <Typography.Text type="secondary">使用 {item.useCount} 次</Typography.Text>
-                {item.favorite ? <Typography.Text type="secondary">已收藏</Typography.Text> : null}
-              </Space>
-            </Space>
-          </List.Item>
-        )}
-      />
+              </Tooltip>
+              <button className="recent-preview-button" type="button" onClick={() => reuse(item)}>
+                {descriptor ? <AntdComponentStaticPreview component={descriptor} /> : <div className="axure-preview axure-preview-panel"><span /><span /></div>}
+              </button>
+              <Typography.Text className="recent-icon-title">{item.name}</Typography.Text>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

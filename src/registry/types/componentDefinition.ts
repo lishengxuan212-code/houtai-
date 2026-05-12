@@ -2,7 +2,7 @@ import type { ComponentCategory, ComponentEvent, JsonRecord } from '../../domain
 import type { ComponentApiSchema } from './apiSchema';
 import type { PropSchemaGroup } from './propSchema';
 
-export type ComponentDefinitionSource = 'system' | 'antd' | 'ant-design-icons' | 'pro-components';
+export type ComponentDefinitionSource = 'system' | 'antd' | 'ant-design-icons' | 'pro-components' | 'mui';
 export type ComponentGenerationRole = 'foundation' | 'enhancement';
 export type ComponentStyleCapability =
   | 'background'

@@ -82,8 +82,8 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
       <div
         style={{
           boxSizing: 'border-box',
-          width: numberProp(node.props.width, 160),
-          height: numberProp(node.props.height, 96),
+          width: '100%',
+          height: '100%',
           background: stringProp(node.props.background, stringProp(node.props.fill, '#ffffff')),
           border: stringProp(node.props.border, '1px solid #d1d5db'),
           borderRadius: numberProp(node.props.radius, 4),
@@ -104,8 +104,8 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
       <div
         style={{
           boxSizing: 'border-box',
-          width: numberProp(node.props.width, 160),
-          height: numberProp(node.props.height, 48),
+          width: '100%',
+          height: '100%',
           background: stringProp(node.props.fill, '#f1f5f9'),
           border: stringProp(node.props.border, '1px solid #dbe3ef'),
           borderRadius: numberProp(node.props.radius, 6),
@@ -122,8 +122,8 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
           boxSizing: 'border-box',
           display: 'grid',
           placeItems: 'center',
-          width: numberProp(node.props.width, 88),
-          height: numberProp(node.props.height, 28),
+          width: '100%',
+          height: '100%',
           color: stringProp(node.props.color, '#1677ff'),
           background: stringProp(node.props.background, '#e6f4ff'),
           border: stringProp(node.props.border, '1px solid #91caff'),
@@ -145,8 +145,8 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          width: numberProp(node.props.width, 960),
-          height: numberProp(node.props.height, 56),
+          width: '100%',
+          height: '100%',
           padding: '0 20px',
           background: stringProp(node.props.fill, '#ffffff'),
           border: stringProp(node.props.border, '1px solid #e5e7eb'),
@@ -163,7 +163,7 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
   if (node.type === 'SideNavBlock') {
     const items = arrayProp(node.props.items, ['首页', '订单管理', '系统设置']);
     return (
-      <div style={{ boxSizing: 'border-box', width: numberProp(node.props.width, 220), height: numberProp(node.props.height, 360), padding: 12, background: stringProp(node.props.fill, '#ffffff'), border: '1px solid #e5e7eb' }}>
+      <div style={{ boxSizing: 'border-box', width: '100%', height: '100%', padding: 12, background: stringProp(node.props.fill, '#ffffff'), border: '1px solid #e5e7eb' }}>
         <div style={{ marginBottom: 10, color: '#111827', fontWeight: 700 }}>{stringProp(node.props.title, '菜单')}</div>
         {items.map((item, index) => (
           <div key={item} style={{ height: 34, padding: '7px 10px', borderRadius: 6, background: index === 0 ? stringProp(node.props.activeColor, '#e6f4ff') : 'transparent', color: index === 0 ? '#1677ff' : '#475569', fontSize: 13 }}>
@@ -178,7 +178,7 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
     const columns = Math.max(1, Math.round(numberProp(node.props.columns, 6)));
     const rows = Math.max(1, Math.round(numberProp(node.props.rows, 4)));
     return (
-      <div style={{ boxSizing: 'border-box', display: 'grid', gap: 10, width: numberProp(node.props.width, 760), height: numberProp(node.props.height, 280), padding: 12, border: stringProp(node.props.border, '1px solid #e5e7eb'), borderRadius: 6, background: '#ffffff' }}>
+      <div style={{ boxSizing: 'border-box', display: 'grid', gap: 10, width: '100%', height: '100%', padding: 12, border: stringProp(node.props.border, '1px solid #e5e7eb'), borderRadius: 6, background: '#ffffff' }}>
         {[...Array(rows)].map((_, rowIndex) => (
           <div key={rowIndex} style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 6 }}>
             {[...Array(columns)].map((__, colIndex) => (
@@ -191,12 +191,12 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
   }
 
   if (node.type === 'Circle') {
-    return <div style={{ width: numberProp(node.props.width, 96), height: numberProp(node.props.height, 96), background: stringProp(node.props.fill, '#ffffff'), border: stringProp(node.props.border, '1px solid #d1d5db'), borderRadius: '50%' }} />;
+    return <div style={{ boxSizing: 'border-box', width: '100%', height: '100%', background: stringProp(node.props.fill, '#ffffff'), border: stringProp(node.props.border, '1px solid #d1d5db'), borderRadius: '50%' }} />;
   }
 
   if (node.type === 'Line' || node.type === 'Arrow') {
     return (
-      <div style={{ width: numberProp(node.props.width, 160), display: 'flex', alignItems: 'center' }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
         <div style={{ flex: 1, borderTop: `${numberProp(node.props.thickness, 1)}px solid ${stringProp(node.props.color, '#9ca3af')}` }} />
         {node.type === 'Arrow' && boolProp(node.props.arrowHead) ? (
           <div style={{ width: 0, height: 0, borderTop: '5px solid transparent', borderBottom: '5px solid transparent', borderLeft: `8px solid ${stringProp(node.props.color, '#6b7280')}` }} />
@@ -208,15 +208,15 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
   if (node.type === 'ImageWidget') {
     const src = stringProp(node.props.src);
     return src ? (
-      <img src={src} alt={stringProp(node.props.alt, 'Image')} style={{ width: numberProp(node.props.width, 240), height: numberProp(node.props.height, 135), objectFit: 'cover' }} />
+      <img src={src} alt={stringProp(node.props.alt, 'Image')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     ) : (
-      <div style={{ width: numberProp(node.props.width, 240), height: numberProp(node.props.height, 135), border: '1px dashed #d1d5db', display: 'grid', placeItems: 'center', color: '#6b7280' }}>Image</div>
+      <div style={{ boxSizing: 'border-box', width: '100%', height: '100%', border: '1px dashed #d1d5db', display: 'grid', placeItems: 'center', color: '#6b7280' }}>Image</div>
     );
   }
 
   if (node.type === 'IconWidget') return <span style={{ color: stringProp(node.props.color, '#1677ff'), fontSize: numberProp(node.props.size, 24) }}>{stringProp(node.props.icon, 'Icon')}</span>;
-  if (node.type === 'DividerWidget') return <div style={{ width: numberProp(node.props.width, 240), borderTop: `${numberProp(node.props.thickness, 1)}px solid ${stringProp(node.props.color, '#d1d5db')}`, color: '#6b7280', fontSize: 12 }}>{stringProp(node.props.text)}</div>;
-  if (node.type === 'Placeholder') return <div style={{ width: numberProp(node.props.width, 240), height: numberProp(node.props.height, 120), border: '1px dashed #9ca3af', display: 'grid', placeItems: 'center', color: '#6b7280' }}>{stringProp(node.props.label, 'Placeholder')}</div>;
+  if (node.type === 'DividerWidget') return <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', borderTop: `${numberProp(node.props.thickness, 1)}px solid ${stringProp(node.props.color, '#d1d5db')}`, color: '#6b7280', fontSize: 12 }}>{stringProp(node.props.text)}</div>;
+  if (node.type === 'Placeholder') return <div style={{ boxSizing: 'border-box', width: '100%', height: '100%', border: '1px dashed #9ca3af', display: 'grid', placeItems: 'center', color: '#6b7280' }}>{stringProp(node.props.label, 'Placeholder')}</div>;
 
   return null;
 }

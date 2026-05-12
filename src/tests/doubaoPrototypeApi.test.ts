@@ -33,6 +33,44 @@ afterEach(() => {
 });
 
 describe('doubaoPrototypeApi plan normalization', () => {
+  it('normalizes page JSON trees into renderable component nodes', async () => {
+    mockChatResponse({
+      type: 'page',
+      title: '活动管理',
+      children: [
+        {
+          type: 'frame',
+          id: 'filter_frame',
+          name: '筛选区',
+          layout: { x: 40, y: 96, width: 960, height: 96 },
+          style: { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, shadow: '0 8px 24px rgba(15,23,42,0.08)' },
+          children: [
+            { type: 'text', content: '活动管理', layout: { x: 0, y: -64, width: 240, height: 40 }, style: { fontSize: 28, fontWeight: 700, color: '#111827' } },
+            { type: 'input', label: '活动名称', placeholder: '请输入活动名称', fieldKey: 'activityName', layout: { x: 24, y: 28, width: 180, height: 36 } },
+            { type: 'select', label: '状态', fieldKey: 'status', options: ['全部', '启用', '停用'], layout: { x: 224, y: 28, width: 180, height: 36 } },
+            { type: 'button', content: '查询', variant: 'primary', layout: { x: 424, y: 28, width: 96, height: 36 } },
+          ],
+        },
+        {
+          type: 'table',
+          name: '活动列表',
+          columns: ['活动ID', '活动名称', '状态', '操作'],
+          actions: ['详情', '编辑'],
+          layout: { x: 40, y: 220, width: 960, height: 320 },
+        },
+      ],
+    });
+
+    const plan = await generatePrototypePlanWithTextModel(config, analysis);
+
+    expect(plan?.nodes.map((node) => node.type)).toEqual(['WhitePanel', 'PageTitle', 'Input', 'Select', 'Button', 'Table']);
+    expect(plan?.nodes[1]).toMatchObject({ type: 'PageTitle', props: { content: '活动管理', fontSize: 28, fontWeight: 700, color: '#111827' }, x: 40, y: 32 });
+    expect(plan?.nodes[2]).toMatchObject({ type: 'Input', props: { label: '活动名称', placeholder: '请输入活动名称', fieldKey: 'activityName' }, x: 64, y: 124 });
+    expect(plan?.nodes[3]).toMatchObject({ type: 'Select', props: { label: '状态', fieldKey: 'status', options: ['全部', '启用', '停用'] } });
+    expect(plan?.nodes[4]).toMatchObject({ type: 'Button', props: { text: '查询', variant: 'primary' } });
+    expect(plan?.nodes[5]).toMatchObject({ type: 'Table', props: { columns: ['活动ID', '活动名称', '状态', '操作'], actions: ['详情', '编辑'] } });
+  });
+
   it('keeps table props when the model puts columns and grouped rowActions on the node', async () => {
     mockChatResponse({
       title: '活动列表',

@@ -11,14 +11,16 @@ describe('ComponentLibraryPanel performance behavior', () => {
     const details = screen.getByTestId('component-library-detail-list');
     fireEvent.change(search, { target: { value: 'Table' } });
 
-    expect(within(details).queryByText('表格')).toBeInTheDocument();
+    expect(within(details).queryAllByText('按钮').length).toBeGreaterThan(0);
 
     await waitFor(() => expect(within(details).queryAllByText('按钮')).toHaveLength(0));
-    expect(within(details).getByText('表格')).toBeInTheDocument();
+    expect(within(details).getAllByText('表格').length).toBeGreaterThan(0);
   });
 
   it('uses lightweight static previews in component cards', () => {
     render(<ComponentLibraryPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: '菜单和表格' }));
 
     expect(document.querySelector('.component-preview-table')).toBeTruthy();
     expect(document.querySelector('.component-card-preview .ant-table')).toBeFalsy();

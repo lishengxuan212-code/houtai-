@@ -5,7 +5,9 @@ import {
   Avatar,
   Badge,
   Breadcrumb,
+  Button,
   Calendar,
+  Card,
   Carousel,
   Cascader,
   Checkbox,
@@ -19,6 +21,7 @@ import {
   Flex,
   FloatButton,
   Image,
+  Input,
   InputNumber,
   Layout,
   List,
@@ -56,6 +59,7 @@ import type { ComponentNode, JsonValue } from '../../domain/types';
 import { componentLabel } from '../componentLabels';
 import type { RendererContext } from './rendererTypes';
 import { asArray, asBoolean, asString } from './primitive';
+import { TableRenderer } from './TableRenderer';
 
 type Props = {
   node: ComponentNode;
@@ -83,9 +87,179 @@ function collectionItems(value: JsonValue | undefined) {
   });
 }
 
+function boolProp(value: JsonValue | undefined, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function numberProp(value: JsonValue | undefined, fallback: number): number {
+  return typeof value === 'number' ? value : fallback;
+}
+
+function muiName(type: string) {
+  return type.startsWith('Mui') ? type.slice(3) : type;
+}
+
+function renderMuiAdapter(node: ComponentNode, children: React.ReactNode, context: RendererContext) {
+  const name = muiName(node.type);
+  const title = String(node.props.title ?? node.props.text ?? node.props.label ?? componentLabel(node.type));
+  const items = collectionItems(node.props.items);
+  switch (name) {
+    case 'Accordion':
+      return (
+        <GenericAntdRenderer
+          node={{ ...node, type: 'Accordion' }}
+          context={context}
+        >
+          {children}
+        </GenericAntdRenderer>
+      );
+    case 'Autocomplete':
+    case 'TextField':
+      return <Input placeholder={asString(node.props.placeholder, '请输入')} addonBefore={asString(node.props.label, title)} />;
+    case 'TextareaAutosize':
+      return <Input.TextArea placeholder={asString(node.props.placeholder, '请输入多行内容')} autoSize={{ minRows: 2, maxRows: 4 }} />;
+    case 'Button':
+    case 'LoadingButton':
+      return (
+        <Button type={asString(node.props.variant, 'contained') === 'contained' ? 'primary' : 'default'} loading={asBoolean(node.props.loading)} onClick={() => context.dispatch?.({ componentId: node.id, event: 'click' })}>
+          {title}
+        </Button>
+      );
+    case 'ButtonGroup':
+      return <Button.Group>{(items.length ? items : collectionItems(['保存', '发布'])).map((item) => <Button key={String(item.key)}>{item.label}</Button>)}</Button.Group>;
+    case 'Fab':
+    case 'SpeedDial':
+      return <Button shape="circle" type="primary" onClick={() => context.dispatch?.({ componentId: node.id, event: 'click' })}>{title.slice(0, 2)}</Button>;
+    case 'ToggleButton':
+    case 'Chip':
+      return <Tag color={asBoolean(node.props.selected) ? 'blue' : 'default'}>{asString(node.props.label, title)}</Tag>;
+    case 'Checkbox':
+      return <Checkbox checked={asBoolean(node.props.checked, true)}>{asString(node.props.label, title)}</Checkbox>;
+    case 'RadioGroup':
+      return <Radio.Group value={asString(node.props.value) || (items[0]?.label ?? '选项 A')} options={(items.length ? items : collectionItems(node.props.options)).map((item) => ({ value: item.label, label: item.label }))} />;
+    case 'Rating':
+      return <Rate defaultValue={numberProp(node.props.value, 3)} />;
+    case 'Select':
+      return <TreeSelect value={asString(node.props.value) || (items[0]?.label ?? '全部')} treeData={(items.length ? items : collectionItems(node.props.options)).map((item) => ({ value: item.label, title: item.label }))} />;
+    case 'Slider':
+      return <Slider defaultValue={numberProp(node.props.value, 40)} />;
+    case 'Switch':
+      return <Switch checked={asBoolean(node.props.checked, true)} />;
+    case 'TransferList':
+      return <Transfer dataSource={(items.length ? items : sampleItems.map((item) => ({ key: item, label: item }))).map((item) => ({ key: String(item.key), title: String(item.label) }))} targetKeys={[]} render={(item) => item.title ?? ''} />;
+    case 'Avatar':
+      return <Avatar>{title.slice(0, 1)}</Avatar>;
+    case 'Badge':
+      return <Badge count={numberProp(node.props.badgeContent, 5)}><Tag>{title}</Tag></Badge>;
+    case 'Divider':
+      return <Divider>{title}</Divider>;
+    case 'Icons':
+    case 'MaterialIcons':
+      return <Tag color="blue">icon</Tag>;
+    case 'List':
+      return <List size="small" dataSource={(items.length ? items : collectionItems(node.props.items)).map((item) => item.label)} renderItem={(item) => <List.Item>{item}</List.Item>} />;
+    case 'Table':
+      return <TableRenderer node={{ ...node, type: 'Table' }} context={context} />;
+    case 'Tooltip':
+      return <Tooltip title="提示内容"><Tag>{title}</Tag></Tooltip>;
+    case 'Typography':
+      return <Typography.Title level={4}>{asString(node.props.text, title)}</Typography.Title>;
+    case 'Alert':
+      return <Alert type="info" showIcon message={title} />;
+    case 'Backdrop':
+      return <div className="runtime-generic-component" style={{ background: 'rgba(15,23,42,0.18)' }}>{title}</div>;
+    case 'Dialog':
+    case 'Modal':
+      return <Card size="small" title={title}>{children || '弹层内容'}</Card>;
+    case 'Progress':
+      return <Progress percent={numberProp(node.props.value, 60)} />;
+    case 'Skeleton':
+      return <Skeleton active paragraph={{ rows: 2 }} />;
+    case 'Snackbar':
+      return <Alert type="success" message={asString(node.props.text, title)} />;
+    case 'AppBar':
+      return <Layout.Header style={{ height: 40, lineHeight: '40px', color: '#fff' }}>{title}</Layout.Header>;
+    case 'Card':
+    case 'Paper':
+    case 'Box':
+    case 'Container':
+      return <Card size="small" title={title}>{children || asString(node.props.text, '内容')}</Card>;
+    case 'BottomNavigation':
+    case 'Tabs':
+      return <Segmented options={(items.length ? items : collectionItems(node.props.items)).map((item) => item.label)} />;
+    case 'Breadcrumbs':
+      return <Breadcrumb items={[{ title: '首页' }, { title }]} />;
+    case 'Drawer':
+      return <Card size="small" title={title}>{children || '抽屉内容'}</Card>;
+    case 'Link':
+      return <Typography.Link onClick={() => context.dispatch?.({ componentId: node.id, event: 'click' })}>{asString(node.props.text, title)}</Typography.Link>;
+    case 'Menu':
+      return <Menu mode="horizontal" items={(items.length ? items : collectionItems(node.props.items)).map((item) => ({ key: String(item.key), label: item.label }))} />;
+    case 'Pagination':
+      return <Pagination size="small" total={50} />;
+    case 'Stepper':
+      return <Steps size="small" current={1} items={(items.length ? items : collectionItems(node.props.items)).map((item) => ({ title: item.label }))} />;
+    case 'Grid':
+    case 'GridLegacy':
+      return <div className="runtime-generic-grid">{children || sampleItems.map((item) => <div key={item}>{item}</div>)}</div>;
+    case 'Stack':
+      return <Space direction="vertical">{children || sampleItems.map((item) => <Tag key={item}>{item}</Tag>)}</Space>;
+    case 'ImageList':
+      return <div className="runtime-generic-grid">{(items.length ? items : collectionItems(node.props.items)).map((item) => <div key={String(item.key)}>{item.label}</div>)}</div>;
+    case 'Popover':
+      return <Popover content="弹出内容"><Tag>{title}</Tag></Popover>;
+    case 'Popper':
+      return <Tooltip title="定位弹层"><Tag>{title}</Tag></Tooltip>;
+    case 'Masonry':
+      return <div className="runtime-generic-masonry">{sampleItems.map((item) => <div key={item}>{item}</div>)}</div>;
+    case 'Timeline':
+      return <Timeline items={(items.length ? items : collectionItems(node.props.items)).map((item) => ({ children: item.label }))} />;
+    case 'DateTimePickers':
+      return <DatePicker showTime />;
+    case 'TreeView':
+      return <Tree treeData={(items.length ? items : collectionItems(node.props.items)).map((item) => ({ key: String(item.key), title: item.label }))} />;
+    default:
+      return <div className="runtime-generic-component">{children || title}</div>;
+  }
+}
+
 export function GenericAntdRenderer({ node, children, context }: Props) {
   const title = String(node.props.title ?? node.props.text ?? componentLabel(node.type));
+  if (node.type.startsWith('Mui')) return renderMuiAdapter(node, children, context);
   switch (node.type) {
+    case 'Accordion': {
+      const controlledExpanded = typeof node.props.expanded === 'boolean' ? node.props.expanded : undefined;
+      const expanded = controlledExpanded ?? boolProp(node.props.defaultExpanded);
+      const summary = String(node.props.summary ?? node.props.title ?? '折叠标题');
+      const details = String(node.props.details ?? node.props.children ?? '折叠内容');
+      const outlined = asString(node.props.variant, 'elevation') === 'outlined';
+      const square = boolProp(node.props.square);
+      const elevation = numberProp(node.props.elevation, 1);
+      const collapseItem = {
+        key: 'panel',
+        label: summary,
+        children: details,
+        ...(boolProp(node.props.disabled) ? { collapsible: 'disabled' as const } : {}),
+        style: { paddingInline: boolProp(node.props.disableGutters) ? 0 : undefined },
+      };
+      return (
+        <Collapse
+          size="small"
+          bordered={outlined}
+          activeKey={expanded ? ['panel'] : []}
+          expandIconPosition="end"
+          style={{
+            borderRadius: square ? 0 : 8,
+            boxShadow: outlined ? undefined : `0 ${Math.max(1, elevation) * 2}px ${Math.max(1, elevation) * 8}px rgba(15,23,42,0.08)`,
+          }}
+          items={[collapseItem]}
+          onChange={(keys) => {
+            const nextExpanded = Array.isArray(keys) ? keys.includes('panel') : keys === 'panel';
+            context.dispatch?.({ componentId: node.id, event: 'openChange', payload: { expanded: nextExpanded } });
+          }}
+        />
+      );
+    }
     case 'FloatButton':
       {
         const badge = badgeProps(node.props.badge);
@@ -170,6 +344,17 @@ export function GenericAntdRenderer({ node, children, context }: Props) {
       return <ColorPicker defaultValue="#1677ff" />;
     case 'DatePicker':
       return <DatePicker />;
+    case 'TextareaAutosize':
+      return <Input.TextArea placeholder={asString(node.props.placeholder, '请输入多行内容')} autoSize={{ minRows: 2, maxRows: 4 }} />;
+    case 'ListBox':
+      return (
+        <List
+          size="small"
+          bordered
+          dataSource={collectionItems(node.content?.options ?? node.props.options).map((item) => item.label)}
+          renderItem={(item) => <List.Item>{item}</List.Item>}
+        />
+      );
     case 'InputNumber':
       return <InputNumber defaultValue={10} />;
     case 'Mentions':

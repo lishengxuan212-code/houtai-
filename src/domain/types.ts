@@ -227,6 +227,7 @@ export type Operation =
   | { type: 'updateNodeEvents'; pageId: string; nodeId: string; events: Record<string, JsonRecord> }
   | { type: 'updateNodeSemantic'; pageId: string; nodeId: string; semantic: ComponentSemantic }
   | { type: 'updateNodeRuntime'; pageId: string; nodeId: string; runtime: ComponentRuntimeConfig }
+  | { type: 'replaceNodesWithComponent'; pageId: string; sourceNodeIds: string[]; node: ComponentNode }
   | { type: 'cloneNodes'; pageId: string; parentNodeId: string; nodeIds: string[]; offset?: { x: number; y: number }; targetFrameId?: string; placeAtHighestLayer?: boolean }
   | { type: 'updateNodeLayerOrder'; pageId: string; frameId: string; orderedNodeIds: string[] }
   | { type: 'groupNodes'; pageId: string; parentNodeId: string; groupNode: ComponentNode; childNodeIds: string[] }

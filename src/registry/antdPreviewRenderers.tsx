@@ -4,7 +4,29 @@ import type { LibraryComponentDescriptor } from './antdManifest';
 export function AntdComponentStaticPreview({ component }: { component: LibraryComponentDescriptor }) {
   if (!component.enabled) return <div className="component-preview-disabled">{component.disabledReason}</div>;
   const label = component.nameZh || component.nameEn;
-  if (component.source === 'pro-components') return <div className="component-preview-generic pro-preview">{label}</div>;
+  const key = component.key;
+  if (component.source === 'pro-components') return <div className="axure-preview axure-preview-panel"><span /><span /></div>;
+  if (component.renderKind === 'system') return <div className="axure-preview axure-preview-system"><span /></div>;
+  if (component.renderKind === 'iconPicker') return <div className="axure-preview axure-preview-icon"><span /></div>;
+  if (['Rectangle', 'VisualBlock', 'WhitePanel'].includes(key)) return <div className="axure-preview axure-preview-rect" />;
+  if (key === 'Circle') return <div className="axure-preview axure-preview-circle" />;
+  if (key === 'ImageWidget' || key === 'Image' || key === 'MuiImageList') return <div className="axure-preview axure-preview-image"><span /></div>;
+  if (key === 'Placeholder') return <div className="axure-preview axure-preview-placeholder"><span /><span /></div>;
+  if (key === 'Line' || key === 'DividerWidget' || key === 'Divider' || key === 'MuiDivider') return <div className="axure-preview axure-preview-line" />;
+  if (key === 'HotZone') return <div className="axure-preview axure-preview-hotzone"><span /></div>;
+  if (key === 'H1' || key === 'PageTitle') return <div className="axure-preview axure-preview-heading h1">H1</div>;
+  if (key === 'H2' || key === 'ModuleTitle') return <div className="axure-preview axure-preview-heading h2">H2</div>;
+  if (key === 'H3') return <div className="axure-preview axure-preview-heading h3">H3</div>;
+  if (['BodyText', 'HelperText', 'StatusLabel', 'AmountText', 'NumericText', 'TimeText', 'Typography', 'MuiTypography'].includes(key)) return <div className="axure-preview axure-preview-text"><b>A</b><span /></div>;
+  if (['Input', 'MuiTextField', 'TextareaAutosize', 'MuiTextareaAutosize', 'InputNumber'].includes(key)) return <div className="axure-preview axure-preview-input" />;
+  if (['Select', 'MuiSelect', 'ListBox', 'TreeSelect', 'Cascader', 'AutoComplete', 'MuiAutocomplete'].includes(key)) return <div className="axure-preview axure-preview-select"><span /></div>;
+  if (['Checkbox', 'MuiCheckbox'].includes(key)) return <div className="axure-preview axure-preview-check" />;
+  if (['Radio', 'MuiRadioGroup'].includes(key)) return <div className="axure-preview axure-preview-radio" />;
+  if (['Switch', 'MuiSwitch', 'Slider', 'MuiSlider', 'Rate', 'MuiRating'].includes(key)) return <div className="axure-preview axure-preview-control"><span /></div>;
+  if (['Menu', 'MuiMenu', 'Tabs', 'MuiTabs', 'Breadcrumb', 'MuiBreadcrumbs', 'Steps', 'MuiStepper', 'Pagination', 'MuiPagination'].includes(key)) return <div className="axure-preview axure-preview-menu"><span /><span /><span /></div>;
+  if (['Card', 'MuiCard', 'Accordion', 'MuiAccordion', 'Collapse', 'PageContainer', 'Section', 'MuiPaper', 'MuiBox', 'MuiContainer'].includes(key)) return <div className="axure-preview axure-preview-panel"><span /><span /></div>;
+  if (['Modal', 'MuiModal', 'MuiDialog', 'Drawer', 'MuiDrawer', 'Popover', 'MuiPopover', 'MuiPopper'].includes(key)) return <div className="axure-preview axure-preview-window"><span /></div>;
+  if (['Alert', 'MuiAlert', 'Message', 'Notification', 'MuiSnackbar', 'Progress', 'MuiProgress', 'Skeleton', 'MuiSkeleton', 'Spin', 'Result'].includes(key)) return <div className="axure-preview axure-preview-feedback"><span /></div>;
   switch (component.nameEn) {
     case 'Table':
       return <div className="component-preview-table"><span /><span /><span /></div>;
@@ -16,7 +38,7 @@ export function AntdComponentStaticPreview({ component }: { component: LibraryCo
     case 'Button':
       return <div className="component-preview-button">{label}</div>;
     default:
-      return <div className="component-preview-generic">{label}</div>;
+      return <div className="axure-preview axure-preview-generic">{label.slice(0, 2)}</div>;
   }
 }
 

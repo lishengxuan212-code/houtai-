@@ -9,6 +9,7 @@ describe('API coverage report', () => {
     expect(byType.get('FloatButton')?.coverage).toBe('full');
     expect(byType.get('FloatButton.Group')?.coverage).toBe('full');
     expect(byType.get('FloatButton.BackTop')?.coverage).toBe('full');
+    expect(byType.get('Accordion')?.coverage).toBe('full');
     expect(byType.get('Table')?.coverage).toBe('partial');
     expect(byType.get('pro.ProTable')?.coverage).toBe('partial');
     expect(byType.get('Table')?.missingProps).toContain('rowSelection');

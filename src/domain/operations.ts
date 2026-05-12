@@ -25,6 +25,13 @@ function collectSubtreeIds(page: Page, nodeId: string, ids = new Set<string>()):
   return ids;
 }
 
+function findSharedParent(page: Page, nodeIds: string[]) {
+  const parents = nodeIds.map((nodeId) => findParentNode(page, nodeId));
+  const first = parents[0];
+  if (!first?.children) return undefined;
+  return parents.every((parent) => parent?.id === first.id) ? first : undefined;
+}
+
 function isDescendant(page: Page, ancestorId: string, nodeId: string): boolean {
   const ancestor = page.nodes[ancestorId];
   if (!ancestor?.children) return false;
@@ -111,6 +118,31 @@ export function applyOperation(project: Project, operation: Operation): Project 
       const node = getPage(draft, operation.pageId)?.nodes[operation.nodeId];
       if (!node) return draft;
       node.runtime = { ...node.runtime, ...operation.runtime };
+      return draft;
+    }
+    case 'replaceNodesWithComponent': {
+      const page = getPage(draft, operation.pageId);
+      if (!page || operation.sourceNodeIds.length === 0 || operation.sourceNodeIds.includes(page.rootNodeId)) return draft;
+      const sourceIds = operation.sourceNodeIds.filter((nodeId) => page.nodes[nodeId]);
+      const sourceSet = new Set(sourceIds);
+      if (sourceSet.size === 0 || sourceSet.has(operation.node.id) || page.nodes[operation.node.id]) return draft;
+      const parent = findSharedParent(page, sourceIds);
+      if (!parent?.children) return draft;
+      const firstIndex = parent.children.findIndex((childId) => sourceSet.has(childId));
+      if (firstIndex < 0) return draft;
+      const deletedIds = new Set<string>();
+      sourceIds.forEach((nodeId) => collectSubtreeIds(page, nodeId, deletedIds));
+      page.nodes[operation.node.id] = structuredClone(operation.node);
+      parent.children = parent.children.flatMap((childId) => {
+        if (!sourceSet.has(childId)) return [childId];
+        return childId === parent.children?.[firstIndex] ? [operation.node.id] : [];
+      });
+      deletedIds.forEach((nodeId) => delete page.nodes[nodeId]);
+      draft.interactions = draft.interactions.filter(
+        (interaction) =>
+          !deletedIds.has(interaction.trigger.componentId.split(':')[0] ?? interaction.trigger.componentId) &&
+          !interaction.actions.some((action) => actionReferencesDeleted(action, deletedIds)),
+      );
       return draft;
     }
     case 'cloneNodes': {

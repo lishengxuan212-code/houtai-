@@ -16,6 +16,7 @@ const maxRecentItems = 50;
 function persist(next: ComponentLibraryState) {
   state = next;
   saveComponentLibraryState(state);
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('component-library-state-change'));
 }
 
 export function getComponentDefaultOverrides(): Record<string, JsonRecord> {
@@ -26,9 +27,53 @@ export function getComponentLibraryOverrides() {
   return structuredClone(state.overrides);
 }
 
-export function saveComponentDefaultProps(componentType: string, defaultProps: JsonRecord, updatedAt = new Date().toISOString()): void {
+export function getComponentCanvasOverrides(): Record<string, { width: number; height: number }> {
+  return structuredClone(state.canvasOverrides ?? {});
+}
+
+export function getComponentDefaultCanvas(componentType: string): { width: number; height: number } | undefined {
+  const canvas = state.canvasOverrides?.[componentType];
+  return canvas ? structuredClone(canvas) : undefined;
+}
+
+export function getComponentNameOverrides(): Record<string, string> {
+  return structuredClone(state.nameOverrides ?? {});
+}
+
+export function getComponentDisplayName(componentType: string, fallback: string): string {
+  return state.nameOverrides?.[componentType] || fallback;
+}
+
+export function saveComponentNameOverride(componentType: string, name: string): void {
+  const nextName = name.trim();
+  const nameOverrides = { ...(state.nameOverrides ?? {}) };
+  if (nextName) nameOverrides[componentType] = nextName;
+  else delete nameOverrides[componentType];
+  persist({ ...state, nameOverrides });
+}
+
+export function restoreComponentNameOverride(componentType: string): void {
+  const nameOverrides = { ...(state.nameOverrides ?? {}) };
+  delete nameOverrides[componentType];
+  persist({ ...state, nameOverrides });
+}
+
+export function saveComponentDefaultProps(
+  componentType: string,
+  defaultProps: JsonRecord,
+  updatedAt = new Date().toISOString(),
+  defaultCanvas?: { width: number; height: number } | undefined,
+): void {
+  const canvasOverrides = { ...(state.canvasOverrides ?? {}) };
+  if (defaultCanvas) {
+    canvasOverrides[componentType] = {
+      width: Math.max(1, Math.round(defaultCanvas.width)),
+      height: Math.max(1, Math.round(defaultCanvas.height)),
+    };
+  }
   persist({
     ...state,
+    canvasOverrides,
     overrides: {
       ...state.overrides,
       [componentType]: {
@@ -49,8 +94,10 @@ export function saveComponentDefaultProps(componentType: string, defaultProps: J
 
 export function restoreComponentDefaultProps(componentType: string): void {
   const overrides = { ...state.overrides };
+  const canvasOverrides = { ...(state.canvasOverrides ?? {}) };
   delete overrides[componentType];
-  persist({ ...state, overrides });
+  delete canvasOverrides[componentType];
+  persist({ ...state, overrides, canvasOverrides });
 }
 
 export function listComponentPresets(): ComponentPreset[] {
@@ -136,5 +183,5 @@ export function reloadComponentLibraryState(): void {
 
 export function clearComponentLibraryState(): void {
   clearComponentLibraryStorage();
-  state = { overrides: {}, presets: [], recent: [] };
+  state = { overrides: {}, nameOverrides: {}, canvasOverrides: {}, presets: [], recent: [] };
 }

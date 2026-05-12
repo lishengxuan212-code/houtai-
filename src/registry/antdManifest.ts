@@ -1,7 +1,8 @@
 import type { ComponentEvent, EditableProp, JsonRecord } from '../domain/types';
+import { getComponentDisplayName } from '../store/componentLibraryStore';
 
 export type LibraryCategory = '通用' | '布局' | '导航' | '数据录入' | '数据展示' | '反馈' | '其他' | '重型组件';
-export type LibrarySource = 'system' | 'antd' | 'ant-design-icons' | 'pro-components';
+export type LibrarySource = 'system' | 'antd' | 'ant-design-icons' | 'pro-components' | 'mui';
 export type RenderKind = 'visual' | 'layout' | 'feedbackAction' | 'system' | 'iconPicker' | 'pro';
 
 export type LibraryComponentDescriptor = {
@@ -21,6 +22,10 @@ export type LibraryComponentDescriptor = {
 };
 
 export const libraryCategories: LibraryCategory[] = ['通用', '布局', '导航', '数据录入', '数据展示', '反馈', '其他', '重型组件'];
+
+export function libraryComponentType(component: Pick<LibraryComponentDescriptor, 'key' | 'source'>): string {
+  return component.source === 'pro-components' ? `pro.${component.key}` : component.key;
+}
 
 const textProp = (key: string, label: string): EditableProp => ({ key, label, control: 'text' });
 const jsonProp = (key: string, label: string): EditableProp => ({ key, label, control: 'json' });
@@ -53,6 +58,114 @@ function item(
 }
 
 const proDisabled = '需安装 Pro Components 后启用';
+
+function muiItem(
+  category: LibraryCategory,
+  nameEn: string,
+  nameZh: string,
+  options: Partial<LibraryComponentDescriptor> = {},
+): LibraryComponentDescriptor {
+  const { defaultProps, editableProps, description, ...rest } = options;
+  return item(category, `Mui${nameEn}`, nameZh, {
+    ...rest,
+    source: 'mui',
+    description: description ?? `本地化适配 MUI Material UI v7 ${nameEn} 组件。`,
+    defaultProps: {
+      title: nameZh,
+      text: nameZh,
+      label: nameZh,
+      ...defaultProps,
+    },
+    editableProps: editableProps ?? [textProp('title', '标题'), textProp('text', '文案'), textProp('label', '标签')],
+  });
+}
+
+export const muiV7LibraryManifest: LibraryComponentDescriptor[] = [
+  muiItem('数据录入', 'Autocomplete', '自动完成', { supportedEvents: ['change'] }),
+  muiItem('通用', 'Button', '按钮', { defaultProps: { text: '按钮', variant: 'contained', color: 'primary', disabled: false }, supportedEvents: ['click'] }),
+  muiItem('通用', 'ButtonGroup', '按钮组', { defaultProps: { items: ['保存', '发布', '更多'] }, editableProps: [jsonProp('items', '按钮项')], supportedEvents: ['click'] }),
+  muiItem('数据录入', 'Checkbox', '多选框', { defaultProps: { label: '选项', checked: true }, supportedEvents: ['change'] }),
+  muiItem('通用', 'Fab', '浮动操作按钮', { defaultProps: { text: '+', color: 'primary' }, supportedEvents: ['click'] }),
+  muiItem('数据录入', 'RadioGroup', '单选组', { defaultProps: { options: ['选项 A', '选项 B'], value: '选项 A' }, editableProps: [jsonProp('options', '选项')], supportedEvents: ['change'] }),
+  muiItem('数据录入', 'Rating', '评分', { defaultProps: { value: 3 }, supportedEvents: ['change'] }),
+  muiItem('数据录入', 'Select', '选择器', { defaultProps: { label: '状态', options: ['全部', '启用', '停用'] }, editableProps: [textProp('label', '标签'), jsonProp('options', '选项')], supportedEvents: ['change'] }),
+  muiItem('数据录入', 'Slider', '滑块', { defaultProps: { value: 40 }, supportedEvents: ['change'] }),
+  muiItem('数据录入', 'Switch', '开关', { defaultProps: { label: '启用', checked: true }, supportedEvents: ['change'] }),
+  muiItem('数据录入', 'TextField', '文本框', { defaultProps: { label: '名称', placeholder: '请输入' }, editableProps: [textProp('label', '标签'), textProp('placeholder', '占位文案')], supportedEvents: ['change'] }),
+  muiItem('数据录入', 'TransferList', '穿梭列表', { defaultProps: { items: ['待选项', '已选项'] }, editableProps: [jsonProp('items', '列表项')], supportedEvents: ['change'] }),
+  muiItem('数据录入', 'ToggleButton', '切换按钮', { defaultProps: { text: '切换', selected: true }, supportedEvents: ['change'] }),
+  muiItem('数据展示', 'Avatar', '头像'),
+  muiItem('数据展示', 'Badge', '徽标', { defaultProps: { text: '消息', badgeContent: 5 } }),
+  muiItem('数据展示', 'Chip', '纸片', { defaultProps: { label: '标签' }, supportedEvents: ['click'] }),
+  muiItem('布局', 'Divider', '分割线'),
+  muiItem('数据展示', 'Icons', '图标集', { renderKind: 'iconPicker', draggable: false, description: 'MUI 图标入口，作为图标选择能力展示。' }),
+  muiItem('数据展示', 'MaterialIcons', 'Material 图标', { renderKind: 'iconPicker', draggable: false, description: 'Material Icons 图标入口，作为图标选择能力展示。' }),
+  muiItem('数据展示', 'List', '列表', { defaultProps: { items: ['列表项一', '列表项二', '列表项三'] }, editableProps: [jsonProp('items', '列表项')] }),
+  muiItem('数据展示', 'Table', '表格', { defaultProps: { columns: [{ key: 'name', title: '名称' }], actions: ['详情'] }, editableProps: [jsonProp('columns', '表格列'), jsonProp('actions', '操作项')], supportedEvents: ['rowClick', 'click'] }),
+  muiItem('数据展示', 'Tooltip', '文字提示'),
+  muiItem('通用', 'Typography', '排版', { defaultProps: { text: '标题文本', variant: 'h6' }, editableProps: [textProp('text', '文本'), textProp('variant', '变体')] }),
+  muiItem('反馈', 'Alert', '警告提示'),
+  muiItem('反馈', 'Backdrop', '背景遮罩'),
+  muiItem('反馈', 'Dialog', '对话框', { renderKind: 'layout', defaultProps: { title: '对话框标题', open: true } }),
+  muiItem('反馈', 'Progress', '进度', { defaultProps: { value: 60 } }),
+  muiItem('反馈', 'Skeleton', '骨架屏'),
+  muiItem('反馈', 'Snackbar', '消息条', { defaultProps: { text: '操作成功' } }),
+  muiItem('数据展示', 'Accordion', '手风琴', {
+    description: '本地化复用 MUI Material UI v7 Accordion API，以中文折叠面板形式渲染。',
+    defaultProps: {
+      summary: '折叠标题',
+      details: '折叠内容',
+      children: '',
+      defaultExpanded: false,
+      disabled: false,
+      disableGutters: false,
+      expanded: null,
+      classes: {},
+      slotProps: {},
+      slots: {},
+      sx: {},
+      component: 'div',
+      elevation: 1,
+      square: false,
+      variant: 'elevation',
+    },
+    editableProps: [],
+    supportedEvents: ['openChange'],
+  }),
+  muiItem('导航', 'AppBar', '应用栏'),
+  muiItem('数据展示', 'Card', '卡片', { renderKind: 'layout', defaultProps: { title: '卡片标题', text: '卡片内容' } }),
+  muiItem('布局', 'Paper', '纸张容器', { renderKind: 'layout' }),
+  muiItem('导航', 'BottomNavigation', '底部导航', { defaultProps: { items: ['首页', '消息', '我的'] }, editableProps: [jsonProp('items', '导航项')], supportedEvents: ['change'] }),
+  muiItem('导航', 'Breadcrumbs', '面包屑'),
+  muiItem('导航', 'Drawer', '抽屉', { renderKind: 'layout', defaultProps: { title: '抽屉标题', open: true } }),
+  muiItem('导航', 'Link', '链接', { defaultProps: { text: '查看详情', href: '#' }, supportedEvents: ['click'] }),
+  muiItem('导航', 'Menu', '菜单', { defaultProps: { items: ['菜单项一', '菜单项二'] }, editableProps: [jsonProp('items', '菜单项')], supportedEvents: ['click'] }),
+  muiItem('导航', 'Pagination', '分页', { supportedEvents: ['change'] }),
+  muiItem('导航', 'SpeedDial', '快速拨号', { defaultProps: { items: ['编辑', '复制', '分享'] }, editableProps: [jsonProp('items', '操作项')], supportedEvents: ['click'] }),
+  muiItem('导航', 'Stepper', '步骤条', { defaultProps: { items: ['填写信息', '确认', '完成'] }, editableProps: [jsonProp('items', '步骤')], supportedEvents: ['change'] }),
+  muiItem('导航', 'Tabs', '标签页', { defaultProps: { items: ['全部', '待处理', '已完成'] }, editableProps: [jsonProp('items', '标签项')], supportedEvents: ['change'] }),
+  muiItem('布局', 'Box', '盒子', { renderKind: 'layout' }),
+  muiItem('布局', 'Container', '容器', { renderKind: 'layout' }),
+  muiItem('布局', 'Grid', '网格', { renderKind: 'layout' }),
+  muiItem('布局', 'GridLegacy', '旧版网格', { renderKind: 'layout' }),
+  muiItem('布局', 'Stack', '堆叠布局', { renderKind: 'layout' }),
+  muiItem('布局', 'ImageList', '图片列表', { defaultProps: { items: ['图片一', '图片二', '图片三'] }, editableProps: [jsonProp('items', '图片项')] }),
+  muiItem('其他', 'ClickAwayListener', '点击外部监听', { renderKind: 'system', draggable: false }),
+  muiItem('其他', 'CssBaseline', 'CSS 基线', { renderKind: 'system', draggable: false }),
+  muiItem('反馈', 'Modal', '模态框', { renderKind: 'layout', defaultProps: { title: '模态框标题', open: true } }),
+  muiItem('其他', 'NoSsr', '禁用服务端渲染', { renderKind: 'system', draggable: false }),
+  muiItem('数据展示', 'Popover', '弹出框'),
+  muiItem('数据展示', 'Popper', '定位弹层'),
+  muiItem('其他', 'Portal', '传送门', { renderKind: 'system', draggable: false }),
+  muiItem('数据录入', 'TextareaAutosize', '自适应文本域', { defaultProps: { placeholder: '请输入多行内容' }, supportedEvents: ['change'] }),
+  muiItem('其他', 'Transitions', '过渡动画', { renderKind: 'system', draggable: false }),
+  muiItem('其他', 'UseMediaQuery', '媒体查询', { renderKind: 'system', draggable: false }),
+  muiItem('布局', 'Masonry', '瀑布流', { renderKind: 'layout' }),
+  muiItem('数据展示', 'Timeline', '时间轴', { defaultProps: { items: ['创建', '审核', '完成'] }, editableProps: [jsonProp('items', '时间项')] }),
+  muiItem('通用', 'LoadingButton', '加载按钮', { defaultProps: { text: '提交中', loading: true }, supportedEvents: ['click'] }),
+  muiItem('数据录入', 'DateTimePickers', '日期时间选择器', { supportedEvents: ['change'] }),
+  muiItem('数据展示', 'TreeView', '树视图', { defaultProps: { items: ['一级节点', '二级节点'] }, editableProps: [jsonProp('items', '树节点')], supportedEvents: ['select'] }),
+];
 
 export const antdLibraryManifest: LibraryComponentDescriptor[] = [
   item('通用', 'Button', '按钮', { defaultProps: { text: '按钮', variant: 'primary', danger: false }, supportedEvents: ['click'] }),
@@ -88,6 +201,8 @@ export const antdLibraryManifest: LibraryComponentDescriptor[] = [
   item('数据录入', 'Form', '表单', { defaultProps: { submitText: '提交', fields: [{ key: 'name', label: '名称', type: 'text', required: true }] }, editableProps: [textProp('submitText', '提交文案'), jsonProp('fields', '字段')], supportedEvents: ['submit', 'change'] }),
   item('数据录入', 'Input', '输入框', { defaultProps: { label: '输入项', placeholder: '请输入', fieldKey: 'keyword' }, editableProps: [textProp('label', '标签'), textProp('placeholder', '占位文案'), textProp('fieldKey', '字段 key')], supportedEvents: ['change'] }),
   item('数据录入', 'InputNumber', '数字输入框', { supportedEvents: ['change'] }),
+  item('数据录入', 'TextareaAutosize', '多行文本', { defaultProps: { label: '多行文本', placeholder: '请输入多行内容' }, editableProps: [textProp('label', '标签'), textProp('placeholder', '占位文案')], supportedEvents: ['change'] }),
+  item('数据录入', 'ListBox', '列表框', { defaultProps: { label: '列表框', options: ['选项一', '选项二', '选项三'] }, editableProps: [textProp('label', '标签'), jsonProp('options', '列表项')], supportedEvents: ['change'] }),
   item('数据录入', 'Mentions', '提及', { supportedEvents: ['change'] }),
   item('数据录入', 'Radio', '单选框', { supportedEvents: ['change'] }),
   item('数据录入', 'Rate', '评分', { supportedEvents: ['change'] }),
@@ -100,6 +215,28 @@ export const antdLibraryManifest: LibraryComponentDescriptor[] = [
   item('数据录入', 'Upload', '上传', { supportedEvents: ['change'] }),
 
   item('数据展示', 'Avatar', '头像'),
+  item('数据展示', 'Accordion', '手风琴', {
+    description: '本地化复用 MUI Material UI Accordion API，以中文折叠面板形式渲染。',
+    defaultProps: {
+      summary: '折叠标题',
+      details: '折叠内容',
+      children: '',
+      defaultExpanded: false,
+      disabled: false,
+      disableGutters: false,
+      expanded: null,
+      classes: {},
+      slotProps: {},
+      slots: {},
+      sx: {},
+      component: 'div',
+      elevation: 1,
+      square: false,
+      variant: 'elevation',
+    },
+    editableProps: [],
+    supportedEvents: ['openChange'],
+  }),
   item('数据展示', 'Badge', '徽标数'),
   item('数据展示', 'Calendar', '日历'),
   item('数据展示', 'Card', '卡片', { renderKind: 'layout', defaultProps: { title: '信息卡片' } }),
@@ -141,27 +278,27 @@ export const antdLibraryManifest: LibraryComponentDescriptor[] = [
   item('其他', 'H1', 'H1', { source: 'system', description: 'Prototype text widget: H1.', defaultProps: { content: 'Page headline' }, editableProps: [textProp('content', 'Content')] }),
   item('其他', 'H2', 'H2', { source: 'system', description: 'Prototype text widget: H2.', defaultProps: { content: 'Section headline' }, editableProps: [textProp('content', 'Content')] }),
   item('其他', 'H3', 'H3', { source: 'system', description: 'Prototype text widget: H3.', defaultProps: { content: 'Module headline' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'BodyText', 'body text', { source: 'system', description: 'Prototype text widget: body text.', defaultProps: { content: 'Body text' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'HelperText', 'helper text', { source: 'system', description: 'Prototype text widget: helper text.', defaultProps: { content: 'Helper text' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'LinkText', 'link text', { source: 'system', description: 'Prototype text widget: link text.', defaultProps: { content: 'Link text' }, editableProps: [textProp('content', 'Content')], supportedEvents: ['click'] }),
-  item('其他', 'ErrorText', 'error text', { source: 'system', description: 'Prototype text widget: error text.', defaultProps: { content: 'Error message' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'Annotation', 'annotation', { source: 'system', description: 'Prototype annotation widget.', defaultProps: { content: 'Annotation' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'StickyNote', 'sticky note', { source: 'system', description: 'Prototype sticky note widget.', defaultProps: { content: 'Sticky note' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'Rectangle', 'rectangle', { source: 'system', description: 'Prototype shape widget: rectangle.', defaultProps: { fill: '#ffffff' } }),
-  item('其他', 'Circle', 'circle', { source: 'system', description: 'Prototype shape widget: circle.', defaultProps: { fill: '#ffffff' } }),
-  item('其他', 'Line', 'line', { source: 'system', description: 'Prototype shape widget: line.', defaultProps: { color: '#9ca3af' } }),
-  item('其他', 'Arrow', 'arrow', { source: 'system', description: 'Prototype shape widget: arrow.', defaultProps: { color: '#6b7280' } }),
-  item('其他', 'ImageWidget', 'image', { source: 'system', description: 'Prototype media widget: image.', defaultProps: { src: '', alt: 'Image' } }),
-  item('其他', 'IconWidget', 'icon', { source: 'system', description: 'Prototype icon widget.', defaultProps: { icon: 'SearchOutlined' } }),
-  item('其他', 'Placeholder', 'placeholder', { source: 'system', description: 'Prototype placeholder widget.', defaultProps: { label: 'Placeholder' } }),
-  item('其他', 'DividerWidget', 'divider', { source: 'system', description: 'Prototype divider widget.', defaultProps: { text: '' } }),
-  item('其他', 'HotZone', 'hot zone', { source: 'system', description: 'Prototype interaction hot zone widget.', defaultProps: { label: 'Hot zone' }, supportedEvents: ['click'] }),
-  item('其他', 'ModuleTitle', 'module title', { source: 'system', description: 'Prototype business text widget: module title.', defaultProps: { content: 'Module title' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'PageTitle', 'page title', { source: 'system', description: 'Prototype business text widget: page title.', defaultProps: { content: 'Page title' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'StatusLabel', 'status text', { source: 'system', description: 'Prototype business text widget: status text.', defaultProps: { content: 'Enabled' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'AmountText', 'amount text', { source: 'system', description: 'Prototype business text widget: amount text.', defaultProps: { content: '$12,580.00' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'NumericText', 'numeric text', { source: 'system', description: 'Prototype business text widget: numeric text.', defaultProps: { content: '1280' }, editableProps: [textProp('content', 'Content')] }),
-  item('其他', 'TimeText', 'time text', { source: 'system', description: 'Prototype business text widget: time text.', defaultProps: { content: '2026-05-07 14:30' }, editableProps: [textProp('content', 'Content')] }),
+  item('其他', 'BodyText', '文本段落', { source: 'system', description: '原型文本：段落正文。', defaultProps: { content: '正文文本' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'HelperText', '辅助文本', { source: 'system', description: '原型文本：辅助说明。', defaultProps: { content: '辅助文本' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'LinkText', '链接文本', { source: 'system', description: '原型文本：链接。', defaultProps: { content: '链接文本' }, editableProps: [textProp('content', '内容')], supportedEvents: ['click'] }),
+  item('其他', 'ErrorText', '错误文本', { source: 'system', description: '原型文本：错误提示。', defaultProps: { content: '错误信息' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'Annotation', '标注', { source: 'system', description: '原型标注。', defaultProps: { content: '标注' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'StickyNote', '便签', { source: 'system', description: '原型便签。', defaultProps: { content: '便签' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'Rectangle', '矩形', { source: 'system', description: '形状：矩形。', defaultProps: { fill: '#ffffff' } }),
+  item('其他', 'Circle', '椭圆形', { source: 'system', description: '形状：椭圆形。', defaultProps: { fill: '#ffffff' } }),
+  item('其他', 'Line', '水平线', { source: 'system', description: '形状：线条。', defaultProps: { color: '#9ca3af' } }),
+  item('其他', 'Arrow', '箭头', { source: 'system', description: '形状：箭头。', defaultProps: { color: '#6b7280' } }),
+  item('其他', 'ImageWidget', '图片', { source: 'system', description: '媒体：图片。', defaultProps: { src: '', alt: '图片' } }),
+  item('其他', 'IconWidget', '图标', { source: 'system', description: '图标元件。', defaultProps: { icon: 'SearchOutlined' } }),
+  item('其他', 'Placeholder', '占位符', { source: 'system', description: '原型占位符。', defaultProps: { label: '占位符' } }),
+  item('其他', 'DividerWidget', '分割线', { source: 'system', description: '原型分割线。', defaultProps: { text: '' } }),
+  item('其他', 'HotZone', '热区', { source: 'system', description: '交互热区。', defaultProps: { label: '热区' }, supportedEvents: ['click'] }),
+  item('其他', 'ModuleTitle', '模块标题', { source: 'system', description: '业务文本：模块标题。', defaultProps: { content: '模块标题' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'PageTitle', '页面标题', { source: 'system', description: '业务文本：页面标题。', defaultProps: { content: '页面标题' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'StatusLabel', '状态文本', { source: 'system', description: '业务文本：状态。', defaultProps: { content: '已启用' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'AmountText', '金额文本', { source: 'system', description: '业务文本：金额。', defaultProps: { content: '¥12,580.00' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'NumericText', '数字文本', { source: 'system', description: '业务文本：数字。', defaultProps: { content: '1280' }, editableProps: [textProp('content', '内容')] }),
+  item('其他', 'TimeText', '时间文本', { source: 'system', description: '业务文本：时间。', defaultProps: { content: '2026-05-07 14:30' }, editableProps: [textProp('content', '内容')] }),
   item('其他', 'VisualBlock', '视觉色块', { source: 'system', description: '用于截图复刻的基础色块。', defaultProps: { label: '视觉色块' } }),
   item('其他', 'WhitePanel', '白色面板', { source: 'system', description: '用于还原后台页面卡片、弹层、内容面板。', defaultProps: { label: '白色面板' } }),
   item('其他', 'BadgePill', '胶囊标签', { source: 'system', description: '用于还原状态、标签、筛选项。', defaultProps: { text: '状态标签' } }),
@@ -177,6 +314,7 @@ export const antdLibraryManifest: LibraryComponentDescriptor[] = [
   item('重型组件', 'ProList', '高级列表', { source: 'pro-components', renderKind: 'pro', enabled: true, draggable: true, disabledReason: proDisabled }),
   item('重型组件', 'ProCard', '高级卡片', { source: 'pro-components', renderKind: 'pro', enabled: true, draggable: true, disabledReason: proDisabled }),
   item('重型组件', 'EditableProTable', '可编辑表格', { source: 'pro-components', renderKind: 'pro', enabled: true, draggable: true, disabledReason: proDisabled }),
+  ...muiV7LibraryManifest,
 ];
 
 export function filterLibraryComponents(
@@ -188,6 +326,7 @@ export function filterLibraryComponents(
     const categoryMatched = !filters.category || filters.category === '全部' || component.category === filters.category;
     const queryMatched =
       !query ||
+      getComponentDisplayName(libraryComponentType(component), component.nameZh).toLowerCase().includes(query) ||
       component.nameEn.toLowerCase().includes(query) ||
       component.nameZh.toLowerCase().includes(query) ||
       component.description.toLowerCase().includes(query);

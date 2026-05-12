@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssemblyCanvas } from '../editor/AssemblyCanvas';
 import { PageOutlinePanel } from '../editor/workbench/PageOutlinePanel';
 import type { Project } from '../domain/types';
+import { clearComponentLibraryState, getComponentCanvasOverrides, getComponentDefaultOverrides } from '../store/componentLibraryStore';
 import { useCanvasViewportStore } from '../store/editorStores';
 import { useProjectStore } from '../store/projectStore';
 import { createTemplateFromSelection, saveUserTemplate } from '../templates/templateOperations';
@@ -129,6 +130,7 @@ describe('AssemblyCanvas page-frame editor', () => {
       },
     });
     localStorage.clear();
+    clearComponentLibraryState();
     replaceProject();
   });
 
@@ -219,6 +221,28 @@ describe('AssemblyCanvas page-frame editor', () => {
 
     await waitFor(() => {
       expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas).toMatchObject({ width: 220, height: 78 });
+    });
+  });
+
+  it('moves all selected canvas nodes together when dragging one selected node', async () => {
+    replaceProject(projectWithThreeButtons());
+    mockCanvasRects();
+    render(<AssemblyCanvas />);
+
+    fireEvent.click(await screen.findByTestId('canvas-node-button_one'));
+    fireEvent.click(screen.getByTestId('canvas-node-button_two'), { shiftKey: true });
+    fireEvent.mouseDown(screen.getByTestId('canvas-node-button_one'), { clientX: 180, clientY: 170, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 210, clientY: 205 });
+    await waitFor(() => {
+      expect(screen.getByTestId('canvas-node-button_two')).toHaveStyle({ transform: 'translate(30px, 35px)' });
+    });
+    fireEvent.mouseUp(window);
+
+    await waitFor(() => {
+      const nodes = useProjectStore.getState().project.pages[0]!.nodes;
+      expect(nodes.button_one?.canvas).toMatchObject({ x: 94, y: 107 });
+      expect(nodes.button_two?.canvas).toMatchObject({ x: 290, y: 195 });
+      expect(nodes.button_three?.canvas).toMatchObject({ x: 520, y: 260 });
     });
   });
 
@@ -346,6 +370,33 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas?.zIndex).toBeLessThan(0);
   });
 
+  it('saves selected component props as defaults from the context menu', async () => {
+    render(<AssemblyCanvas />);
+
+    const node = await screen.findByTestId('canvas-node-button_one');
+    fireEvent.contextMenu(node);
+    fireEvent.click(screen.getByLabelText('context-save-default'));
+
+    expect(getComponentDefaultOverrides().Button).toEqual({
+      text: 'Create order',
+      variant: 'primary',
+      danger: false,
+    });
+    expect(getComponentCanvasOverrides().Button).toEqual({
+      width: 180,
+      height: 48,
+    });
+    expect(screen.queryByLabelText('context-save-default')).not.toBeInTheDocument();
+
+    useProjectStore.getState().addComponent('Button');
+    const newId = useProjectStore.getState().selectedNodeId!;
+    expect(newId).not.toBe('button_one');
+    expect(useProjectStore.getState().project.pages[0]!.nodes[newId]?.canvas).toMatchObject({
+      width: 180,
+      height: 48,
+    });
+  });
+
   it('runs context menu copy paste rename lock hide delete and save template actions', async () => {
     const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('Renamed from menu');
     render(<AssemblyCanvas />);
@@ -443,6 +494,27 @@ describe('AssemblyCanvas page-frame editor', () => {
 
     expect(useProjectStore.getState().project.pages[0]!.nodes.button_two).toBeUndefined();
     input.remove();
+  });
+
+  it('deletes and reorders selected canvas nodes as a group', () => {
+    replaceProject(projectWithThreeButtons());
+
+    useProjectStore.getState().selectNodes(['button_one', 'button_two']);
+    useProjectStore.getState().moveSelectedForward();
+    let nodes = useProjectStore.getState().project.pages[0]!.nodes;
+    expect(nodes.button_one!.canvas!.zIndex).toBeGreaterThan(nodes.button_three!.canvas!.zIndex);
+    expect(nodes.button_two!.canvas!.zIndex).toBeGreaterThan(nodes.button_one!.canvas!.zIndex);
+
+    useProjectStore.getState().bringSelectedToFront();
+    nodes = useProjectStore.getState().project.pages[0]!.nodes;
+    expect(nodes.button_one?.canvas?.zIndex).toBeGreaterThan(3);
+    expect(nodes.button_two?.canvas?.zIndex).toBeGreaterThan(nodes.button_one!.canvas!.zIndex);
+
+    useProjectStore.getState().deleteSelectedNode();
+    nodes = useProjectStore.getState().project.pages[0]!.nodes;
+    expect(nodes.button_one).toBeUndefined();
+    expect(nodes.button_two).toBeUndefined();
+    expect(nodes.button_three).toBeDefined();
   });
 
   it('groups and ungroups selected canvas nodes through project operations', () => {

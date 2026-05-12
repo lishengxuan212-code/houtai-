@@ -1,2 +1,2 @@
 export { InlineTextEditor } from './InlineTextEditor';
-export { patchArrayItemLabel, patchScalarProp } from './inlineEditProps';
+export { patchArrayItemLabel, patchScalarProp, patchTableCell } from './inlineEditProps';

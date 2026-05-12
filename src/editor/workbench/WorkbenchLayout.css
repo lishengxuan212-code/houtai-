@@ -141,6 +141,88 @@
   gap: 8px;
 }
 
+.component-system-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 620px;
+  max-height: 72vh;
+  margin: -8px -24px -24px;
+  background: #f8fafc;
+}
+
+.component-system-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(130px, 1fr));
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.component-system-body {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+
+.component-system-sidebar {
+  padding: 14px 10px;
+  border-right: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.component-system-sidebar button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+}
+
+.component-system-sidebar button.active,
+.component-system-sidebar button:hover {
+  background: #ffffff;
+  color: #1677ff;
+}
+
+.component-system-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+}
+
+.component-system-card .ant-card-body {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+}
+
+.component-system-card-preview {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 38px;
+  margin-top: 2px;
+}
+
+.component-system-card-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .component-library-grid {
   min-width: 0;
   display: grid;
@@ -149,8 +231,9 @@
 }
 
 .component-library-grid.vertical {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(54px, 1fr));
+  gap: 10px 8px;
 }
 
 .component-card,
@@ -164,8 +247,34 @@
   background: #ffffff;
 }
 
+.component-card.axure-tile {
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border-color: transparent;
+  border-radius: 3px;
+  background: transparent;
+  cursor: grab;
+  user-select: none;
+}
+
+.component-card.axure-tile:hover {
+  border-color: #b9d7ff;
+  background: #eef6ff;
+}
+
+.component-card.axure-tile:active {
+  cursor: grabbing;
+}
+
+.component-card.axure-tile:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
+}
+
 .component-card.disabled {
   background: #f8fafc;
+  cursor: not-allowed;
 }
 
 .component-card-preview {
@@ -180,11 +289,70 @@
   background: #fbfcfe;
 }
 
+.component-card-preview.axure-tile-preview {
+  width: 46px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .component-card-title {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: center;
   gap: 6px;
+  width: 100%;
+  min-height: 18px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.recent-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(54px, 1fr));
+  gap: 10px 8px;
+}
+
+.recent-icon-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.recent-icon-tile:hover {
+  border-color: #b9d7ff;
+  background: #eef6ff;
+}
+
+.recent-preview-button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.recent-icon-title {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.recent-favorite {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  z-index: 1;
+  color: #64748b;
 }
 
 .component-card-meta {
@@ -214,6 +382,217 @@
   height: 24px;
   border-radius: 4px;
   background: #e0f2fe;
+}
+
+.axure-preview {
+  position: relative;
+  width: 36px;
+  height: 28px;
+  color: #5f6368;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.axure-preview-rect {
+  width: 28px;
+  height: 20px;
+  border: 1px solid #9aa0a6;
+  background: #fff;
+}
+
+.axure-preview-circle {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #8f949b;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.axure-preview-image {
+  width: 30px;
+  height: 24px;
+  border: 1px solid #aab3c2;
+  background: linear-gradient(135deg, #e7f1fb 0 45%, #159bd3 46% 72%, #f5f7fb 73%);
+}
+
+.axure-preview-image span {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7fb7de;
+}
+
+.axure-preview-placeholder {
+  width: 28px;
+  height: 22px;
+  border: 1px solid #a8adb5;
+}
+
+.axure-preview-placeholder span {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: 30px;
+  border-top: 1px solid #a8adb5;
+  transform: rotate(35deg);
+}
+
+.axure-preview-placeholder span + span {
+  transform: rotate(-35deg);
+}
+
+.axure-preview-heading {
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #666;
+}
+
+.axure-preview-heading.h1 {
+  font-size: 25px;
+}
+
+.axure-preview-heading.h2 {
+  font-size: 22px;
+}
+
+.axure-preview-heading.h3 {
+  font-size: 19px;
+}
+
+.axure-preview-text b {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  color: #0b95d5;
+  font-size: 20px;
+}
+
+.axure-preview-text span {
+  position: absolute;
+  left: 22px;
+  top: 7px;
+  width: 14px;
+  height: 12px;
+  border-top: 2px solid #777;
+  border-bottom: 2px solid #777;
+}
+
+.axure-preview-line {
+  height: 20px;
+  border-bottom: 2px solid #159bd3;
+}
+
+.axure-preview-input,
+.axure-preview-select {
+  width: 32px;
+  height: 18px;
+  border: 1px solid #a6acb5;
+  background: #fff;
+}
+
+.axure-preview-select span {
+  position: absolute;
+  right: 5px;
+  top: 7px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #6b7280;
+}
+
+.axure-preview-check {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #9aa0a6;
+}
+
+.axure-preview-check::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 3px;
+  width: 9px;
+  height: 14px;
+  border-right: 2px solid #159bd3;
+  border-bottom: 2px solid #159bd3;
+  transform: rotate(40deg);
+}
+
+.axure-preview-radio {
+  width: 23px;
+  height: 23px;
+  border: 1px solid #8f949b;
+  border-radius: 50%;
+}
+
+.axure-preview-control {
+  height: 22px;
+  border-bottom: 2px solid #159bd3;
+}
+
+.axure-preview-control span {
+  position: absolute;
+  left: 12px;
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  background: #159bd3;
+}
+
+.axure-preview-menu span {
+  display: block;
+  height: 4px;
+  margin: 4px 0;
+  background: #9aa0a6;
+}
+
+.axure-preview-panel,
+.axure-preview-window {
+  width: 32px;
+  height: 24px;
+  border: 1px solid #a6acb5;
+  background: #fff;
+}
+
+.axure-preview-panel span,
+.axure-preview-window span {
+  display: block;
+  height: 5px;
+  margin: 4px;
+  background: #dbeafe;
+}
+
+.axure-preview-feedback {
+  width: 30px;
+  height: 22px;
+  border: 1px solid #8fb9e8;
+  background: #eff6ff;
+}
+
+.axure-preview-feedback span {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 10px;
+  border-top: 2px solid #159bd3;
+}
+
+.axure-preview-hotzone {
+  width: 32px;
+  height: 18px;
+  background: #129bd3;
+}
+
+.axure-preview-icon,
+.axure-preview-system,
+.axure-preview-generic {
+  display: grid;
+  place-items: center;
+  border: 1px dashed #a6acb5;
+  color: #0b80bd;
 }
 
 .template-card .ant-typography {

@@ -7,13 +7,14 @@ import type { ComponentNode, NodeCanvasConfig, Page, PageFrame } from '../domain
 import { componentLabel } from '../registry/componentLabels';
 import { RenderNode } from '../registry/renderers';
 import type { RendererContext } from '../registry/renderers/rendererTypes';
+import { getComponentDefaultCanvas, saveComponentDefaultProps } from '../store/componentLibraryStore';
 import { useCanvasInteractionStore, useCanvasViewportStore } from '../store/editorStores';
 import { useProjectStore } from '../store/projectStore';
-import { InlineTextEditor, patchArrayItemLabel, patchScalarProp } from './inlineEdit';
+import { InlineTextEditor, patchArrayItemLabel, patchScalarProp, patchTableCell } from './inlineEdit';
 import { incrementMetric, measureMetric } from './performance/performanceMetrics';
 import { SaveTemplateModal } from './templates/SaveTemplateModal';
 
-type ResizeCorner = 'nw' | 'ne' | 'sw' | 'se';
+type ResizeHandle = 'n' | 'e' | 's' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
 type SelectionBox = { startX: number; startY: number; x: number; y: number; width: number; height: number };
 
 const DEFAULT_FRAME_WIDTH = 1200;
@@ -38,8 +39,8 @@ const EDITABLE_SHORTCUT_SELECTOR = [
 
 const DEFAULT_NODE_SIZES: Record<string, { width: number; height: number }> = {
   Button: { width: 180, height: 48 },
-  Input: { width: 240, height: 44 },
-  Select: { width: 240, height: 44 },
+  Input: { width: 260, height: 72 },
+  Select: { width: 260, height: 72 },
   SearchBar: { width: 840, height: 112 },
   Table: { width: 860, height: 300 },
   Form: { width: 520, height: 320 },
@@ -97,6 +98,26 @@ function isEditableShortcutTarget(target: EventTarget | null) {
   return target instanceof HTMLElement && Boolean(target.closest(EDITABLE_SHORTCUT_SELECTOR));
 }
 
+function isTextEditingShortcutTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(
+      target.closest([
+        'input',
+        'textarea',
+        'select',
+        '[contenteditable="true"]',
+        '[role="textbox"]',
+        '.inline-edit-text',
+        '.inline-edit-input',
+        '.ant-input',
+        '.ant-input-number',
+        '.ant-select',
+      ].join(',')),
+    )
+  );
+}
+
 function readScrollBox(element: HTMLElement) {
   return {
     scrollLeft: element.scrollLeft,
@@ -140,6 +161,20 @@ function useRendererContext(page: Page | undefined, project: ReturnType<typeof u
                 })
               : undefined
           }
+        />
+      ),
+      tableCellText: ({ node, rowIndex, columnKey, value }) => (
+        <InlineTextEditor
+          value={value}
+          onCommit={(nextValue) => {
+            if (!page) return;
+            const hasDataRows = Array.isArray(node.data?.rows);
+            if (hasDataRows) {
+              apply({ type: 'updateNodeData', pageId: page.id, nodeId: node.id, data: { ...(node.data ?? {}), rows: patchTableCell(node.data?.rows, rowIndex, columnKey, nextValue) } });
+              return;
+            }
+            apply({ type: 'updateNodeProps', pageId: page.id, nodeId: node.id, props: { rows: patchTableCell(node.props.rows ?? node.props.data, rowIndex, columnKey, nextValue) } });
+          }}
         />
       ),
     },
@@ -193,11 +228,20 @@ function CanvasNodeFrame({
   const beginInteraction = useCanvasInteractionStore((state) => state.beginInteraction);
   const updateInteraction = useCanvasInteractionStore((state) => state.updateInteraction);
   const endInteraction = useCanvasInteractionStore((state) => state.endInteraction);
-  const activeInteraction = useCanvasInteractionStore((state) => (state.active?.nodeId === node.id ? state.active : undefined));
+  const activeInteraction = useCanvasInteractionStore((state) => state.active);
   const spacePanActive = useCanvasViewportStore((state) => state.spacePanActive);
   const selected = selectedNodeIds.includes(node.id);
   const locked = Boolean(canvas.locked);
-  const visualCanvas = activeInteraction?.previewCanvas;
+  const dragPreviewCanvas =
+    activeInteraction?.kind === 'drag' && selectedNodeIds.includes(activeInteraction.nodeId) && selected && !locked
+      ? {
+          ...canvas,
+          x: canvas.x + activeInteraction.previewCanvas.x - activeInteraction.startCanvas.x,
+          y: canvas.y + activeInteraction.previewCanvas.y - activeInteraction.startCanvas.y,
+        }
+      : undefined;
+  const resizePreviewCanvas = activeInteraction?.kind === 'resize' && activeInteraction.nodeId === node.id ? activeInteraction.previewCanvas : undefined;
+  const visualCanvas = dragPreviewCanvas ?? resizePreviewCanvas;
 
   const persistCanvas = (patch: Partial<NodeCanvasConfig>) => {
     apply({ type: 'updateNodeCanvas', pageId: page.id, nodeId: node.id, canvas: { ...canvas, ...patch, parentFrameId: activeFrameId } });
@@ -209,6 +253,7 @@ function CanvasNodeFrame({
     if (event.button !== 0 || locked || (event.target as HTMLElement).closest('.canvas-node-toolbar, .resize-handle, .inline-edit-text, .inline-edit-input')) return;
     event.preventDefault();
     event.stopPropagation();
+    const dragSelection = selectedNodeIds.includes(node.id) ? selectedNodeIds : [node.id];
     if (!selectedNodeIds.includes(node.id)) selectNode(node.id);
 
     const startX = event.clientX;
@@ -244,6 +289,11 @@ function CanvasNodeFrame({
       window.removeEventListener('mousemove', onMove);
       if (frameId !== undefined) window.cancelAnimationFrame(frameId);
       endInteraction();
+      if (dragSelection.length > 1 && dragSelection.includes(node.id)) {
+        useProjectStore.getState().selectNodes(dragSelection);
+        useProjectStore.getState().moveSelectedCanvasBy(node.id, latestCanvas.x - startCanvas.x, latestCanvas.y - startCanvas.y);
+        return;
+      }
       persistCanvas({
         x: latestCanvas.x,
         y: latestCanvas.y,
@@ -254,7 +304,7 @@ function CanvasNodeFrame({
     window.addEventListener('mouseup', onUp, { once: true });
   };
 
-  const startResize = (corner: ResizeCorner) => (event: ReactMouseEvent<HTMLSpanElement>) => {
+  const startResize = (handle: ResizeHandle) => (event: ReactMouseEvent<HTMLSpanElement>) => {
     if (spacePanActive) return;
     if (locked) return;
     event.preventDefault();
@@ -281,19 +331,19 @@ function CanvasNodeFrame({
       const deltaY = moveEvent.clientY - startY;
       const next: Partial<NodeCanvasConfig> = {};
 
-      if (corner.includes('w')) {
+      if (handle.includes('w')) {
         const width = Math.max(MIN_NODE_WIDTH, startCanvas.width - deltaX);
         next.width = Math.round(width);
         next.x = Math.round(startCanvas.x + startCanvas.width - width);
-      } else {
+      } else if (handle.includes('e')) {
         next.width = Math.max(MIN_NODE_WIDTH, Math.round(startCanvas.width + deltaX));
       }
 
-      if (corner.includes('n')) {
+      if (handle.includes('n')) {
         const height = Math.max(MIN_NODE_HEIGHT, startCanvas.height - deltaY);
         next.height = Math.round(height);
         next.y = Math.round(startCanvas.y + startCanvas.height - height);
-      } else {
+      } else if (handle.includes('s')) {
         next.height = Math.max(MIN_NODE_HEIGHT, Math.round(startCanvas.height + deltaY));
       }
 
@@ -398,8 +448,8 @@ function CanvasNodeFrame({
         <NestedRenderNode page={page} node={node} activeFrameId={activeFrameId} context={context} />
       </div>
       {selected && !locked
-        ? (['nw', 'ne', 'sw', 'se'] as const).map((corner) => (
-            <span aria-label={`resize-${corner}`} className={`resize-handle ${corner}`} key={corner} onMouseDown={startResize(corner)} />
+        ? (['n', 'e', 's', 'w', 'nw', 'ne', 'sw', 'se'] as const).map((handle) => (
+            <span aria-label={`resize-${handle}`} className={`resize-handle ${handle}`} key={handle} onMouseDown={startResize(handle)} />
           ))
         : null}
     </div>
@@ -526,6 +576,12 @@ export function AssemblyCanvas() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (isTextEditingShortcutTarget(event.target)) return;
+        event.preventDefault();
+        deleteSelectedNode();
+        return;
+      }
       if (isEditableShortcutTarget(event.target)) return;
       if (event.key === ' ') {
         event.preventDefault();
@@ -541,11 +597,6 @@ export function AssemblyCanvas() {
         event.preventDefault();
         setContextMenu(undefined);
         selectNodes([]);
-        return;
-      }
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        event.preventDefault();
-        deleteSelectedNode();
         return;
       }
       const command = event.ctrlKey || event.metaKey;
@@ -729,6 +780,11 @@ export function AssemblyCanvas() {
     apply({ type: 'setNodeCanvasHidden', pageId: page.id, nodeId: selectedNodeId, hidden: true });
   }
 
+  function saveSelectedAsDefault() {
+    if (!selectedNode) return;
+    saveComponentDefaultProps(selectedNode.type, selectedNode.props, new Date().toISOString(), selectedNode.canvas);
+  }
+
   function runContextAction(action: () => void) {
     action();
     closeContextMenu();
@@ -791,7 +847,7 @@ export function AssemblyCanvas() {
             event.preventDefault();
             event.stopPropagation();
             const point = dropPointInFrame(event);
-            const size = DEFAULT_NODE_SIZES[type] ?? { width: 220, height: 96 };
+            const size = getComponentDefaultCanvas(type) ?? DEFAULT_NODE_SIZES[type] ?? { width: 220, height: 96 };
             addComponentToParent(type, page.rootNodeId, {
               ...point,
               ...size,
@@ -836,6 +892,7 @@ export function AssemblyCanvas() {
               <Button size="small" aria-label="context-send-back" onClick={() => runContextAction(sendSelectedToBack)}>置于底层</Button>
               <Button size="small" aria-label="context-group" onClick={() => runContextAction(groupSelectedNodes)}>组合</Button>
               <Button size="small" aria-label="context-ungroup" onClick={() => runContextAction(ungroupSelectedNode)}>取消组合</Button>
+              <Button size="small" aria-label="context-save-default" onClick={() => runContextAction(saveSelectedAsDefault)}>保存为默认</Button>
               <Button size="small" aria-label="context-save-template" onClick={() => { setSaveTemplateOpen(true); closeContextMenu(); }}>保存为模板</Button>
               <Button size="small" aria-label="context-delete" danger onClick={() => runContextAction(deleteSelectedNode)}>删除</Button>
             </div>

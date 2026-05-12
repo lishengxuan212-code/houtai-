@@ -1,7 +1,8 @@
-import type { ComponentEvent, JsonRecord } from '../domain/types';
+import type { ComponentCategory, ComponentEvent, JsonRecord } from '../domain/types';
 import { antdLibraryManifest } from './antdManifest';
 import { apiSchemaToPropSchema } from './apiSchemas/apiSchemaToPropSchema';
 import { floatButtonApiSchema } from './apiSchemas/floatButtonApiSchema';
+import { muiAccordionApiSchema } from './apiSchemas/muiAccordionApiSchema';
 import { allDescriptors } from './descriptors';
 import { normalizeComponentDefinition } from './normalizers/normalizeComponentDefinition';
 import { mergeJsonRecords } from './normalizers/normalizeNodeProps';
@@ -10,6 +11,7 @@ import type { PropSchemaGroup, PropSchemaField } from './types/propSchema';
 
 const descriptorByType = new Map(allDescriptors.map((descriptor) => [descriptor.type, descriptor]));
 const manifestByType = new Map(antdLibraryManifest.filter((component) => component.source !== 'pro-components' && component.source !== 'system').map((component) => [component.key, component]));
+const muiManifestItems = antdLibraryManifest.filter((component) => component.source === 'mui');
 const foundationTypes = new Set([
   'PageContainer',
   'Section',
@@ -73,6 +75,7 @@ function withGenerationCapabilities(definition: ComponentDefinition): ComponentD
   const generationRole = definition.generationRole ?? generationRoleFor(definition.type);
   return {
     ...definition,
+    propSchema: appendCommonAppearance(definition),
     generationRole,
     styleCapabilities: definition.styleCapabilities ?? styleCapabilitiesFor(definition.type),
     description:
@@ -87,6 +90,91 @@ function withGenerationCapabilities(definition: ComponentDefinition): ComponentD
 
 function field(path: string, label: string, editor: PropSchemaField['editor'], extra: Partial<PropSchemaField> = {}): PropSchemaField {
   return { path, label, editor, ...extra };
+}
+
+const fontOptions = ['Microsoft YaHei', 'PingFang SC', 'Arial', 'SimSun', 'SimHei', 'Helvetica', 'Tahoma'].map((value) => ({ label: value, value }));
+const fontSizeOptions = [12, 13, 14, 16, 18, 20, 24, 28, 32, 40, 48].map((value) => ({ label: `${value}`, value }));
+const fontWeightOptions = [
+  { label: '常规', value: 400 },
+  { label: '中等', value: 500 },
+  { label: '加粗', value: 700 },
+];
+const alignOptions = [
+  { label: '左对齐', value: 'left' },
+  { label: '居中', value: 'center' },
+  { label: '右对齐', value: 'right' },
+];
+
+const commonAppearanceSchema: PropSchemaGroup[] = [
+  { key: 'opacity', id: 'opacity', title: '透明度', fields: [field('props.opacity', '透明度', 'number', { min: 0, max: 100 })] },
+  {
+    key: 'typography',
+    id: 'typography',
+    title: '文字',
+    fields: [
+      field('props.fontFamily', '字体', 'select', { options: fontOptions }),
+      field('props.fontWeight', '字重', 'select', { options: fontWeightOptions }),
+      field('props.fontSize', '字号', 'select', { options: fontSizeOptions }),
+      field('props.color', '颜色', 'color'),
+      field('props.lineHeight', '行高', 'number'),
+      field('props.letterSpacing', '字间距', 'number'),
+      field('props.align', '对齐', 'select', { options: alignOptions }),
+      field('props.underline', '下划线', 'switch'),
+      field('props.strikethrough', '删除线', 'switch'),
+    ],
+  },
+  { key: 'fill', id: 'fill', title: '填充', fields: [field('props.fill', '填充色', 'color'), field('props.background', '背景色', 'color'), field('props.backgroundImage', '背景图片', 'text')] },
+  {
+    key: 'border',
+    id: 'border',
+    title: '边框',
+    fields: [
+      field('props.borderColor', '边框色', 'color'),
+      field('props.borderWidth', '粗细', 'number', { min: 0, max: 20 }),
+      field('props.borderStyle', '线型', 'select', {
+        options: [
+          { label: '实线', value: 'solid' },
+          { label: '虚线', value: 'dashed' },
+          { label: '点线', value: 'dotted' },
+          { label: '无', value: 'none' },
+        ],
+      }),
+    ],
+  },
+  { key: 'shadow', id: 'shadow', title: '阴影', fields: [field('props.shadow', '外阴影', 'text'), field('props.innerShadow', '内阴影', 'text')] },
+  { key: 'corner', id: 'corner', title: '圆角', fields: [field('props.radius', '圆角', 'number', { min: 0, max: 200 }), field('props.borderRadius', '边框圆角', 'number', { min: 0, max: 200 })] },
+  {
+    key: 'padding',
+    id: 'padding',
+    title: '内边距',
+    fields: [field('props.paddingLeft', '左', 'number', { min: 0, max: 200 }), field('props.paddingTop', '上', 'number', { min: 0, max: 200 }), field('props.paddingRight', '右', 'number', { min: 0, max: 200 }), field('props.paddingBottom', '下', 'number', { min: 0, max: 200 })],
+  },
+  { key: 'size', id: 'size', title: '尺寸', fields: [field('props.width', '宽度', 'number', { min: 1 }), field('props.height', '高度', 'number', { min: 1 })] },
+];
+
+function appendCommonAppearance(definition: ComponentDefinition): PropSchemaGroup[] {
+  const existing = new Set(definition.propSchema.flatMap((group) => group.fields.map((schemaField) => schemaField.path)));
+  return [
+    ...definition.propSchema,
+    ...commonAppearanceSchema
+      .map((group) => ({ ...group, fields: group.fields.filter((schemaField) => !existing.has(schemaField.path)) }))
+      .filter((group) => group.fields.length > 0),
+  ];
+}
+
+function editorForManifestProp(key: string, control: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'json'): PropSchemaField['editor'] {
+  if (control === 'boolean') return 'switch';
+  if (control !== 'json') return control;
+  if (key === 'columns') return 'tableColumns';
+  if (key === 'rows' || key === 'data') return 'tableRows';
+  if (key === 'fields') return 'formFields';
+  if (key === 'options') return 'options';
+  if (key === 'items') return 'menuItems';
+  if (key === 'tabs') return 'tabsItems';
+  if (key === 'steps') return 'stepsItems';
+  if (key === 'treeData') return 'treeData';
+  if (key === 'actions') return 'actions';
+  return 'advancedJson';
 }
 
 function floatButtonDefinition(input: {
@@ -160,6 +248,42 @@ const floatButtonDefinitions: ComponentDefinition[] = [
 ];
 
 const tableRowsGroup: PropSchemaGroup = { key: 'rows', id: 'rows', title: '行数据', fields: [field('rows', '行数据', 'tableRows')] };
+
+const categoryMap: Record<string, ComponentCategory> = {
+  通用: 'navigation',
+  布局: 'layout',
+  导航: 'navigation',
+  数据录入: 'form',
+  数据展示: 'data',
+  反馈: 'feedback',
+  其他: 'business',
+  重型组件: 'business',
+};
+
+function manifestDefinition(component: (typeof antdLibraryManifest)[number]): ComponentDefinition {
+  return {
+    type: component.key,
+    nameEn: component.nameEn,
+    nameZh: component.nameZh,
+    source: component.source,
+    category: categoryMap[component.category] ?? 'business',
+    defaultProps: component.defaultProps,
+    propSchema: [
+      {
+        key: 'props',
+        id: 'props',
+        title: '属性',
+        fields: component.editableProps.map((prop) => field(`props.${prop.key}`, prop.label, editorForManifestProp(prop.key, prop.control))),
+      },
+    ],
+    supportedEvents: component.supportedEvents,
+    enabled: component.enabled,
+    draggable: component.draggable,
+    renderKind: component.renderKind,
+    description: component.description,
+    ...(component.renderKind === 'layout' ? { canHaveChildren: true } : {}),
+  };
+}
 
 function heavyDefinition(input: {
   type: string;
@@ -380,6 +504,7 @@ const heavyComponentDefinitions: ComponentDefinition[] = [
 
 const normalizedDefinitions = [
   ...allDescriptors.map((descriptor) => normalizeComponentDefinition(descriptor, manifestByType.get(descriptor.type))),
+  ...muiManifestItems.map((component) => manifestDefinition(component)),
   ...antdLibraryManifest
     .filter((component) => component.source === 'pro-components')
     .map((component) =>
@@ -398,6 +523,16 @@ const normalizedDefinitions = [
 ];
 
 function withS21Schemas(definition: ComponentDefinition): ComponentDefinition {
+  if (definition.type === 'Accordion' || definition.type === 'MuiAccordion') {
+    const schemas = apiSchemaToPropSchema(muiAccordionApiSchema, definition.type);
+    return {
+      ...definition,
+      apiSchema: muiAccordionApiSchema,
+      propSchema: schemas.propSchema,
+      interactionSchema: schemas.interactionSchema,
+      description: '本地化复用 MUI Material UI Accordion API，以中文手风琴组件展示。',
+    };
+  }
   if (definition.type === 'Dropdown') {
     return {
       ...definition,
@@ -414,10 +549,10 @@ function withS21Schemas(definition: ComponentDefinition): ComponentDefinition {
       contentSchema: [{ key: 'menu', id: 'menu', title: '菜单内容', fields: [field('content.menuItems', '菜单项', 'menuItems')] }],
     };
   }
-  if (definition.type === 'Table') {
+  if (definition.type === 'Table' || definition.type === 'MuiTable') {
     return { ...definition, defaultProps: { ...definition.defaultProps }, defaultData: { rows: definition.defaultProps.rows ?? [] }, dataSchema: [tableRowsGroup] };
   }
-  if (definition.type === 'Select' || definition.type === 'Radio' || definition.type === 'Checkbox') {
+  if (definition.type === 'Select' || definition.type === 'Radio' || definition.type === 'Checkbox' || definition.type === 'ListBox') {
     return {
       ...definition,
       defaultProps: {

@@ -33,4 +33,15 @@ describe('component schema layer', () => {
 
     expect(props).toEqual({ columns: [{ key: 'name', title: 'Customer Name' }] });
   });
+
+  it('uses structured editors for editable text, options, table columns, and table rows', () => {
+    const table = getComponentDefinition('Table');
+    const select = getComponentDefinition('Select');
+    const listBox = getComponentDefinition('ListBox');
+
+    expect(table?.propSchema.flatMap((group) => group.fields.map((field) => field.editor))).toContain('tableColumns');
+    expect(table?.dataSchema?.flatMap((group) => group.fields.map((field) => field.editor))).toContain('tableRows');
+    expect(select?.contentSchema?.flatMap((group) => group.fields.map((field) => field.editor))).toContain('options');
+    expect(listBox?.contentSchema?.flatMap((group) => group.fields.map((field) => field.editor))).toContain('options');
+  });
 });

@@ -17,6 +17,7 @@ export function createComponentPreset(input: CreateComponentPresetInput): Compon
     ...(input.description ? { description: input.description } : {}),
     ...(input.category ? { category: input.category } : {}),
     props: structuredClone(input.props ?? {}),
+    ...(input.canvas ? { canvas: structuredClone(input.canvas) } : {}),
     ...(input.interactions ? { interactions: structuredClone(input.interactions) } : {}),
     createdAt: now,
     updatedAt: now,
@@ -48,6 +49,7 @@ export function createNodeFromComponentPreset(preset: ComponentPreset, instanceP
     type: componentType,
     name: preset.name,
     props: createNodePropsFromPreset(preset, {}, instanceProps),
+    ...(preset.canvas ? { canvas: structuredClone(preset.canvas) } : {}),
     ...(definition?.canHaveChildren ? { children: [] } : {}),
   };
 }

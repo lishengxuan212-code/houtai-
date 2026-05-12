@@ -1,11 +1,13 @@
 import { Button, Empty, Input, List, Modal, Space, Tag, Typography } from 'antd';
-import { Bot, GitBranch, Home, Play, SquarePen } from 'lucide-react';
+import { Bot, GitBranch, Home, Package, Play, SquarePen } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { runAiRulesForPage } from '../../ai/rules';
 import { exportPlainPrd } from '../../export/plainPrd';
 import { useProjectStore } from '../../store/projectStore';
 import { LogicBoardPanel } from '../LogicBoardPanel';
+import { AiPanel } from '../AiPanel';
 import { ProjectToolbarActions } from '../project/ProjectToolbarActions';
+import { ComponentSystemPanel } from '../components/ComponentSystemPanel';
 
 const severityColor = {
   error: 'red',
@@ -17,6 +19,8 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
   const [logicBoardOpen, setLogicBoardOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [aiCheckOpen, setAiCheckOpen] = useState(false);
+  const [aiGenerateOpen, setAiGenerateOpen] = useState(false);
+  const [componentSystemOpen, setComponentSystemOpen] = useState(false);
   const project = useProjectStore((state) => state.project);
   const currentPageId = useProjectStore((state) => state.currentPageId);
   const mode = useProjectStore((state) => state.mode);
@@ -35,6 +39,8 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
       <Space>
         {onBackHome ? <Button icon={<Home size={16} />} onClick={onBackHome}>首页</Button> : null}
         <ProjectToolbarActions onExport={() => setExportOpen(true)} />
+        <Button icon={<Package size={16} />} onClick={() => setComponentSystemOpen(true)}>组件系统</Button>
+        <Button icon={<Bot size={16} />} onClick={() => setAiGenerateOpen(true)}>AI 生成</Button>
         <Button icon={<Bot size={16} />} onClick={() => setAiCheckOpen(true)}>AI 检查</Button>
         <Button icon={<GitBranch size={16} />} onClick={() => setLogicBoardOpen(true)}>逻辑看板</Button>
         <Button
@@ -70,6 +76,12 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
             />
           )}
         </Space>
+      </Modal>
+      <Modal title="AI 生成页面" open={aiGenerateOpen} onCancel={() => setAiGenerateOpen(false)} footer={null} width={520}>
+        <AiPanel />
+      </Modal>
+      <Modal title="组件系统" open={componentSystemOpen} onCancel={() => setComponentSystemOpen(false)} footer={null} width={980}>
+        <ComponentSystemPanel />
       </Modal>
       <Modal title="逻辑看板" open={logicBoardOpen} onCancel={() => setLogicBoardOpen(false)} footer={null} width={760}>
         <LogicBoardPanel />

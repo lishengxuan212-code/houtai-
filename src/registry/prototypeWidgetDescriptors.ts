@@ -103,56 +103,56 @@ export const prototypeWidgetDescriptors: ComponentDescriptor[] = [
   textWidget({ type: 'AmountText', displayName: '金额文本', content: '¥12,580.00', fontSize: 20, fontWeight: 700, color: '#111827' }),
   textWidget({ type: 'NumericText', displayName: '数字文本', content: '1280', fontSize: 20, fontWeight: 700, color: '#111827' }),
   textWidget({ type: 'TimeText', displayName: '时间文本', content: '2026-05-11 14:30', fontSize: 13, fontWeight: 400, color: '#4b5563' }),
-  widget('Rectangle', 'rectangle', 'layout', { fill: '#ffffff', border: '1px solid #d1d5db', radius: 4, width: 160, height: 96 }, [
-    { key: 'fill', label: 'Fill', control: 'text' },
-    { key: 'border', label: 'Border', control: 'text' },
-    { key: 'radius', label: 'Radius', control: 'number', min: 0, max: 80 },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 2400 },
-    { key: 'height', label: 'Height', control: 'number', min: 1, max: 1600 },
+  widget('Rectangle', '矩形', 'layout', { fill: '#ffffff', border: '1px solid #d1d5db', radius: 4, width: 160, height: 96 }, [
+    { key: 'fill', label: '填充色', control: 'text' },
+    { key: 'border', label: '边框', control: 'text' },
+    { key: 'radius', label: '圆角', control: 'number', min: 0, max: 80 },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 2400 },
+    { key: 'height', label: '高度', control: 'number', min: 1, max: 1600 },
   ]),
-  widget('Circle', 'circle', 'layout', { fill: '#ffffff', border: '1px solid #d1d5db', width: 96, height: 96 }, [
-    { key: 'fill', label: 'Fill', control: 'text' },
-    { key: 'border', label: 'Border', control: 'text' },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 1600 },
-    { key: 'height', label: 'Height', control: 'number', min: 1, max: 1600 },
+  widget('Circle', '椭圆形', 'layout', { fill: '#ffffff', border: '1px solid #d1d5db', width: 96, height: 96 }, [
+    { key: 'fill', label: '填充色', control: 'text' },
+    { key: 'border', label: '边框', control: 'text' },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 1600 },
+    { key: 'height', label: '高度', control: 'number', min: 1, max: 1600 },
   ]),
-  widget('Line', 'line', 'layout', { color: '#9ca3af', thickness: 1, width: 160 }, [
-    { key: 'color', label: 'Color', control: 'text' },
-    { key: 'thickness', label: 'Thickness', control: 'number', min: 1, max: 24 },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 2400 },
+  widget('Line', '水平线', 'layout', { color: '#9ca3af', thickness: 1, width: 160 }, [
+    { key: 'color', label: '颜色', control: 'text' },
+    { key: 'thickness', label: '粗细', control: 'number', min: 1, max: 24 },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 2400 },
   ]),
-  widget('Arrow', 'arrow', 'layout', { color: '#6b7280', thickness: 2, width: 160, arrowHead: true }, [
-    { key: 'color', label: 'Color', control: 'text' },
-    { key: 'thickness', label: 'Thickness', control: 'number', min: 1, max: 24 },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 2400 },
-    { key: 'arrowHead', label: 'Arrow head', control: 'boolean' },
+  widget('Arrow', '箭头', 'layout', { color: '#6b7280', thickness: 2, width: 160, arrowHead: true }, [
+    { key: 'color', label: '颜色', control: 'text' },
+    { key: 'thickness', label: '粗细', control: 'number', min: 1, max: 24 },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 2400 },
+    { key: 'arrowHead', label: '箭头', control: 'boolean' },
   ]),
-  widget('ImageWidget', 'image', 'data', { src: '', alt: 'Image', fit: 'cover', width: 240, height: 135 }, [
-    { key: 'src', label: 'Image URL', control: 'text' },
-    { key: 'alt', label: 'Alt text', control: 'text' },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 2400 },
-    { key: 'height', label: 'Height', control: 'number', min: 1, max: 1600 },
+  widget('ImageWidget', '图片', 'data', { src: '', alt: '图片', fit: 'cover', width: 240, height: 135 }, [
+    { key: 'src', label: '图片地址', control: 'text' },
+    { key: 'alt', label: '替代文本', control: 'text' },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 2400 },
+    { key: 'height', label: '高度', control: 'number', min: 1, max: 1600 },
   ]),
-  widget('IconWidget', 'icon', 'data', { icon: 'SearchOutlined', color: '#1677ff', size: 24 }, [
-    { key: 'icon', label: 'Icon', control: 'text' },
-    { key: 'color', label: 'Color', control: 'text' },
-    { key: 'size', label: 'Size', control: 'number', min: 8, max: 128 },
+  widget('IconWidget', '图标', 'data', { icon: 'SearchOutlined', color: '#1677ff', size: 24 }, [
+    { key: 'icon', label: '图标', control: 'text' },
+    { key: 'color', label: '颜色', control: 'text' },
+    { key: 'size', label: '大小', control: 'number', min: 8, max: 128 },
   ]),
-  widget('Placeholder', 'placeholder', 'layout', { label: 'Placeholder', width: 240, height: 120 }, [
-    { key: 'label', label: 'Label', control: 'text' },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 2400 },
-    { key: 'height', label: 'Height', control: 'number', min: 1, max: 1600 },
+  widget('Placeholder', '占位符', 'layout', { label: '占位符', width: 240, height: 120 }, [
+    { key: 'label', label: '标签', control: 'text' },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 2400 },
+    { key: 'height', label: '高度', control: 'number', min: 1, max: 1600 },
   ]),
-  widget('DividerWidget', 'divider', 'layout', { text: '', color: '#d1d5db', thickness: 1, width: 240 }, [
-    { key: 'text', label: 'Text', control: 'text' },
-    { key: 'color', label: 'Color', control: 'text' },
-    { key: 'thickness', label: 'Thickness', control: 'number', min: 1, max: 24 },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 2400 },
+  widget('DividerWidget', '分割线', 'layout', { text: '', color: '#d1d5db', thickness: 1, width: 240 }, [
+    { key: 'text', label: '文本', control: 'text' },
+    { key: 'color', label: '颜色', control: 'text' },
+    { key: 'thickness', label: '粗细', control: 'number', min: 1, max: 24 },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 2400 },
   ]),
-  widget('HotZone', 'hot zone', 'layout', { label: 'Hot zone', border: '1px dashed #f59e0b', background: 'rgba(245, 158, 11, 0.08)', width: 160, height: 96 }, [
-    { key: 'label', label: 'Label', control: 'text' },
-    { key: 'width', label: 'Width', control: 'number', min: 1, max: 2400 },
-    { key: 'height', label: 'Height', control: 'number', min: 1, max: 1600 },
+  widget('HotZone', '热区', 'layout', { label: '热区', border: '1px dashed #f59e0b', background: 'rgba(245, 158, 11, 0.08)', width: 160, height: 96 }, [
+    { key: 'label', label: '标签', control: 'text' },
+    { key: 'width', label: '宽度', control: 'number', min: 1, max: 2400 },
+    { key: 'height', label: '高度', control: 'number', min: 1, max: 1600 },
   ]),
   widget('VisualBlock', '视觉色块', 'layout', { label: '视觉色块', fill: '#f1f5f9', border: '1px solid #dbe3ef', radius: 6, width: 160, height: 48, shadow: 'none' }, [
     { key: 'label', label: '名称', control: 'text' },

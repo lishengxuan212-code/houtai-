@@ -29,7 +29,7 @@ export function LibraryComponentDetailPanel({ component }: { component: LibraryC
       <Typography.Paragraph type="secondary">{definition.nameEn}</Typography.Paragraph>
       <Space wrap>
         <Tag>{definition.category}</Tag>
-        <Tag>{definition.source === 'pro-components' ? 'ProComponents' : 'Ant Design'}</Tag>
+        <Tag>{definition.source === 'pro-components' ? 'ProComponents' : definition.source === 'mui' ? 'MUI v7' : 'Ant Design'}</Tag>
       </Space>
       <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
         {definition.description ?? component.description}

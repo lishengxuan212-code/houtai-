@@ -53,3 +53,21 @@ export const useCanvasViewportStore = create<CanvasViewportStore>((set) => ({
   setSpacePanActive: (active) => set({ spacePanActive: active }),
   resetViewport: () => set({ zoom: 1, spacePanActive: false }),
 }));
+
+type WorkbenchUiStore = {
+  libraryTab: string;
+  libraryScrollTop: number;
+  rightInspectorTab: string;
+  setLibraryTab: (tab: string) => void;
+  setLibraryScrollTop: (scrollTop: number) => void;
+  setRightInspectorTab: (tab: string) => void;
+};
+
+export const useWorkbenchUiStore = create<WorkbenchUiStore>((set) => ({
+  libraryTab: 'library',
+  libraryScrollTop: 0,
+  rightInspectorTab: 'props',
+  setLibraryTab: (libraryTab) => set({ libraryTab }),
+  setLibraryScrollTop: (libraryScrollTop) => set({ libraryScrollTop }),
+  setRightInspectorTab: (rightInspectorTab) => set({ rightInspectorTab }),
+}));

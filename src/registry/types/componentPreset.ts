@@ -1,4 +1,4 @@
-import type { JsonRecord } from '../../domain/types';
+import type { JsonRecord, NodeCanvasConfig } from '../../domain/types';
 import type { Interaction } from '../../domain/types';
 
 export type ComponentPreset = {
@@ -9,6 +9,7 @@ export type ComponentPreset = {
   description?: string;
   category?: string;
   props: JsonRecord;
+  canvas?: NodeCanvasConfig;
   interactions?: Interaction[];
   createdAt: string;
   updatedAt: string;
@@ -23,6 +24,7 @@ export type CreateComponentPresetInput = {
   category?: string;
   description?: string;
   props?: JsonRecord;
+  canvas?: NodeCanvasConfig;
   interactions?: Interaction[];
   now?: string;
 };

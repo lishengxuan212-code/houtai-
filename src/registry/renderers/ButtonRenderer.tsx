@@ -7,6 +7,7 @@ export function ButtonRenderer({ node, context }: NodeRendererProps) {
   const text = asString(node.props.text, node.name);
   return (
     <Button
+      style={{ width: '100%', height: '100%' }}
       type={variant === 'primary' ? 'primary' : variant === 'link' ? 'link' : 'default'}
       danger={asBoolean(node.props.danger)}
       disabled={context.isNodeDisabled?.(node.id) === true}

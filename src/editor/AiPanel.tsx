@@ -228,8 +228,13 @@ export function AiPanel() {
         const analysis = localAnalysis ?? await analyzeImageFile(file);
         nextPlan = inferImagePrototypePlan(analysis);
       }
+      const beforeNodeIds = new Set(project.pages.find((page) => page.id === currentPageId)?.nodes ? Object.keys(project.pages.find((page) => page.id === currentPageId)!.nodes) : []);
       const nextProject = applyImagePrototypePlan(project, currentPageId, currentFrameId, nextPlan);
-      commitProject(nextProject, currentPageId);
+      const nextPage = nextProject.pages.find((page) => page.id === currentPageId);
+      const generatedNodeIds = nextPage ? Object.keys(nextPage.nodes).filter((nodeId) => !beforeNodeIds.has(nodeId)) : [];
+      const firstGeneratedNodeId = generatedNodeIds[0];
+      commitProject(nextProject, currentPageId, firstGeneratedNodeId);
+      setModelStatus(generatedNodeIds.length > 0 ? `已生成并插入 ${generatedNodeIds.length} 个组件到当前画板。` : '未生成可插入组件，请换一张更清晰的截图或检查模型返回内容。');
       setPlan(nextPlan);
     } finally {
       setGenerating(false);
@@ -266,13 +271,6 @@ export function AiPanel() {
 
       <section>
         <Typography.Text strong>AI 模型配置</Typography.Text>
-        <Alert
-          style={{ marginTop: 8 }}
-          type="info"
-          showIcon
-          message="模型分工"
-          description="视觉理解 / 结构生成用于识别图片并输出组件 JSON；视觉向量 / 组件匹配用于把截图区域匹配到最接近的组件库资产。API Key 和模型名只保存在本机浏览器。"
-        />
         <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 12 }}>
           <Typography.Text type="secondary">{modelSettings.visionStructure.label}</Typography.Text>
           <Input

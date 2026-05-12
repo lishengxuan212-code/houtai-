@@ -52,8 +52,12 @@ const COMPONENT_PROP_KEYS = [
   'placeholder',
   'value',
   'label',
+  'fieldKey',
   'variant',
   'status',
+  'content',
+  'src',
+  'alt',
 ];
 
 function componentPropsFromRecord(value: Record<string, unknown>, type: string | undefined): JsonRecord {
@@ -77,6 +81,114 @@ function defaultBox(index: number) {
   return { x: 40, y: 80 + index * 88, width: 360, height: 56 };
 }
 
+function numberFrom(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function recordValue(value: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
+  const next = value[key];
+  return isRecord(next) ? next : undefined;
+}
+
+function nodeBox(value: Record<string, unknown>, index: number, offset: { x: number; y: number }) {
+  const layout = recordValue(value, 'layout');
+  const fallback = defaultBox(index);
+  return {
+    x: offset.x + numberFrom(value.x ?? layout?.x, fallback.x),
+    y: offset.y + numberFrom(value.y ?? layout?.y, fallback.y),
+    width: numberFrom(value.width ?? layout?.width, fallback.width),
+    height: numberFrom(value.height ?? layout?.height, fallback.height),
+  };
+}
+
+function normalizedNodeType(type: string | undefined, value: Record<string, unknown>) {
+  const lower = type?.toLowerCase();
+  if (!lower || lower === 'page') return undefined;
+  if (lower === 'frame' || lower === 'container' || lower === 'section' || lower === 'card') return 'WhitePanel';
+  if (lower === 'text') {
+    const style = recordValue(value, 'style');
+    return numberFrom(style?.fontSize, 14) >= 24 ? 'PageTitle' : 'BodyText';
+  }
+  if (lower === 'button') return 'Button';
+  if (lower === 'input' || lower === 'textarea') return 'Input';
+  if (lower === 'select') return 'Select';
+  if (lower === 'table') return 'Table';
+  if (lower === 'form') return 'Form';
+  if (lower === 'tabs') return 'Tabs';
+  if (lower === 'modal') return 'Modal';
+  if (lower === 'drawer') return 'Drawer';
+  if (lower === 'image') return 'ImageWidget';
+  if (lower === 'icon') return 'IconWidget';
+  if (lower === 'badge') return 'BadgePill';
+  if (lower === 'divider') return 'DividerWidget';
+  return type;
+}
+
+function styleProps(value: Record<string, unknown>, type: string, box: { width: number; height: number }): JsonRecord {
+  const style = recordValue(value, 'style');
+  const props: JsonRecord = {};
+  if (type === 'WhitePanel') {
+    props.label = String(value.name ?? value.title ?? value.id ?? '区域');
+    props.width = box.width;
+    props.height = box.height;
+    props.fill = typeof style?.background === 'string' ? style.background : '#ffffff';
+    if (typeof style?.border === 'string') props.border = style.border;
+    if (typeof style?.borderRadius === 'number') props.radius = style.borderRadius;
+    if (typeof style?.radius === 'number') props.radius = style.radius;
+    if (typeof style?.shadow === 'string') props.shadow = style.shadow;
+    return props;
+  }
+  if (type === 'PageTitle' || type === 'BodyText') {
+    const content = value.content ?? value.text ?? value.title ?? value.label ?? value.name;
+    if (typeof content === 'string') props.content = content;
+    if (typeof style?.fontSize === 'number') props.fontSize = style.fontSize;
+    if (typeof style?.fontWeight === 'number') props.fontWeight = style.fontWeight;
+    if (typeof style?.color === 'string') props.color = style.color;
+    props.width = box.width;
+    props.height = box.height;
+    return props;
+  }
+  if (type === 'Button') {
+    const text = value.content ?? value.text ?? value.label ?? value.name;
+    if (typeof text === 'string') props.text = text;
+    return props;
+  }
+  if (type === 'Input' || type === 'Select') {
+    const label = value.label ?? value.name ?? value.title;
+    if (typeof label === 'string') props.label = label;
+    if (typeof value.placeholder === 'string') props.placeholder = value.placeholder;
+    if (typeof value.fieldKey === 'string') props.fieldKey = value.fieldKey;
+    if (Array.isArray(value.options)) props.options = toJsonValue(value.options) ?? [];
+    return props;
+  }
+  if (type === 'ImageWidget') {
+    if (typeof value.src === 'string') props.src = value.src;
+    if (typeof value.alt === 'string') props.alt = value.alt;
+    props.width = box.width;
+    props.height = box.height;
+  }
+  return props;
+}
+
+function normalizeDesignTree(value: Record<string, unknown>, index = 0, offset = { x: 0, y: 0 }): ImagePrototypePlan['nodes'] {
+  const type = typeof value.type === 'string' ? value.type : undefined;
+  const children = Array.isArray(value.children) ? value.children : [];
+  if (type?.toLowerCase() === 'page') {
+    return children.flatMap((child, childIndex) => (isRecord(child) ? normalizeDesignTree(child, childIndex, offset) : []));
+  }
+
+  const nextType = normalizedNodeType(type, value);
+  const box = nodeBox(value, index, offset);
+  const props = nextType ? { ...componentPropsFromRecord(value, nextType), ...styleProps(value, nextType, box), ...toJsonRecord(value.props) } : {};
+  const name = String(value.name ?? value.title ?? value.label ?? value.content ?? nextType ?? type ?? `节点${index + 1}`);
+  const current = nextType ? [{ type: nextType, name, props, ...box }] : [];
+  const childOffset = nextType === 'WhitePanel' ? { x: box.x, y: box.y } : offset;
+  return [
+    ...current,
+    ...children.flatMap((child, childIndex) => (isRecord(child) ? normalizeDesignTree(child, childIndex, childOffset) : [])),
+  ];
+}
+
 function normalizePlan(value: unknown): ImagePrototypePlan | undefined {
   if (!isRecord(value)) return undefined;
   if (!Array.isArray(value.nodes) && isDirectTableConfig(value)) {
@@ -93,19 +205,23 @@ function normalizePlan(value: unknown): ImagePrototypePlan | undefined {
       ],
     };
   }
-  if (!Array.isArray(value.nodes)) return undefined;
   const title = typeof value.title === 'string' ? value.title : 'AI 识别生成的后台页面';
   const summary = typeof value.summary === 'string' ? value.summary : '由视觉理解模型识别图片后生成。';
+  if (!Array.isArray(value.nodes)) {
+    const nodes = normalizeDesignTree(value);
+    return nodes.length ? { title, summary, nodes } : undefined;
+  }
   const nodes = value.nodes.flatMap((item, index): ImagePrototypePlan['nodes'] => {
     if (!isRecord(item)) return [];
-    const type = typeof item.type === 'string' ? item.type : undefined;
+    if (Array.isArray(item.children)) return normalizeDesignTree(item, index);
+    const type = normalizedNodeType(typeof item.type === 'string' ? item.type : undefined, item);
     const name = typeof item.name === 'string' ? item.name : type;
-    const props = { ...componentPropsFromRecord(item, type), ...toJsonRecord(item.props) };
     const fallback = defaultBox(index);
     const x = typeof item.x === 'number' ? item.x : fallback.x;
     const y = typeof item.y === 'number' ? item.y : fallback.y;
     const width = typeof item.width === 'number' ? item.width : fallback.width;
     const height = typeof item.height === 'number' ? item.height : fallback.height;
+    const props = { ...componentPropsFromRecord(item, type), ...styleProps(item, type ?? '', { width, height }), ...toJsonRecord(item.props) };
     if (!type || !name) return [];
     return [{ type, name, props, x, y, width, height }];
   });
@@ -186,7 +302,7 @@ export async function generatePrototypePlanWithVisionModel(config: AiModelConfig
         {
           role: 'system',
           content:
-            '你是后台原型截图识别助手。请识别图片中的后台页面结构，并只输出 JSON。节点 type 只能使用 PageTitle、SearchBar、Button、Table、Form、Tabs、Modal、Drawer、Image、AmountText、StatusLabel、BodyText。坐标使用 1200x760 画板坐标。不要输出解释文字。',
+            '你是后台原型截图识别助手。请识别图片中的完整页面结构，并只输出页面 JSON，不要输出解释文字。优先使用 page、frame、text、button、input、select、table、form、tabs、modal、drawer、image、icon、badge、divider 等基础节点；每个节点可包含 layout、style、props、children。坐标使用 1200x760 画板坐标。',
         },
         {
           role: 'user',
@@ -194,7 +310,7 @@ export async function generatePrototypePlanWithVisionModel(config: AiModelConfig
             {
               type: 'text',
               text:
-                '请把这张后台页面图片转换为组件计划 JSON，格式为 {"title":"...","summary":"...","nodes":[{"type":"Table","name":"数据列表","props":{},"x":40,"y":220,"width":900,"height":320}]}。props 需要包含真实识别到的标题、按钮文案、查询字段、表格列和表单字段。',
+                '请把这张后台页面图片转换为可渲染页面 JSON，推荐格式为 {"type":"page","title":"...","children":[{"type":"frame","name":"筛选区","layout":{"x":40,"y":96,"width":960,"height":96},"style":{"background":"#fff"},"children":[{"type":"input","label":"名称","layout":{"x":24,"y":28,"width":180,"height":36}}]},{"type":"table","name":"数据列表","columns":["名称","状态","操作"],"actions":["详情"],"layout":{"x":40,"y":220,"width":960,"height":320}}]}。内容必须来自图片，包括标题、按钮文案、查询字段、表格列、表单字段和空状态。',
             },
             { type: 'image_url', image_url: { url: imageUrl } },
           ],
@@ -241,11 +357,11 @@ export async function generatePrototypePlanWithTextModel(config: AiModelConfig, 
         {
           role: 'system',
           content:
-            '你是后台原型结构规划助手。输入来自本地图片 OCR 和像素区域检测结果。请根据这些文本和区域推断后台页面组件，并只输出 JSON。节点 type 只能使用 PageTitle、SearchBar、Button、Table、Form、Tabs、Modal、Drawer、Image、AmountText、StatusLabel、BodyText。坐标使用 1200x760 画板坐标。',
+            '你是后台原型结构规划助手。输入来自本地图片 OCR 和像素区域检测结果。请根据这些文本和区域推断完整后台页面，并只输出页面 JSON。优先使用 page、frame、text、button、input、select、table、form、tabs、modal、drawer、image、icon、badge、divider 等基础节点；每个节点可包含 layout、style、props、children。坐标使用 1200x760 画板坐标。',
         },
         {
           role: 'user',
-          content: `请根据以下图片分析结果生成组件计划 JSON，格式为 {"title":"...","summary":"...","nodes":[{"type":"Table","name":"数据列表","props":{},"x":40,"y":220,"width":900,"height":320}]}。\n\n${summarizeImageAnalysis(analysis)}`,
+          content: `请根据以下图片分析结果生成可渲染页面 JSON，推荐格式为 {"type":"page","title":"...","children":[{"type":"frame","name":"筛选区","layout":{"x":40,"y":96,"width":960,"height":96},"children":[{"type":"input","label":"名称","layout":{"x":24,"y":28,"width":180,"height":36}}]},{"type":"table","name":"数据列表","columns":["名称","状态","操作"],"actions":["详情"],"layout":{"x":40,"y":220,"width":960,"height":320}}]}。\n\n${summarizeImageAnalysis(analysis)}`,
         },
       ],
     }),
