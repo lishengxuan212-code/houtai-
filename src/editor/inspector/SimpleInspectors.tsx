@@ -19,14 +19,17 @@ function patchChanged(changed: Record<string, unknown>, updateProps: (props: Jso
   updateProps(patch);
 }
 
-export function ButtonInspector({ node, updateProps }: InspectorProps) {
-  const form = usePropForm(node.props, ['text', 'variant', 'danger']);
+export function ButtonInspector({ node, updateProps, hideTopBarProps }: InspectorProps) {
+  const keys = hideTopBarProps ? ['variant', 'danger'] : ['text', 'variant', 'danger'];
+  const form = usePropForm(node.props, keys);
   return (
     <div className="inspector-stack">
       <Form form={form} layout="vertical" onValuesChange={(changed) => patchChanged(changed, updateProps)}>
-        <Form.Item label="文案" name="text">
-          <Input />
-        </Form.Item>
+        {!hideTopBarProps ? (
+          <Form.Item label="文案" name="text">
+            <Input />
+          </Form.Item>
+        ) : null}
         <Form.Item label="样式" name="variant">
           <Select
             options={[
@@ -45,8 +48,9 @@ export function ButtonInspector({ node, updateProps }: InspectorProps) {
   );
 }
 
-function TitleInspector({ node, updateProps, label }: InspectorProps & { label: string }) {
+function TitleInspector({ node, updateProps, label, hideTopBarProps }: InspectorProps & { label: string }) {
   const form = usePropForm(node.props, ['title']);
+  if (hideTopBarProps) return <AdvancedJsonEditor key={JSON.stringify(node.props)} value={node.props} onApply={updateProps} />;
   return (
     <div className="inspector-stack">
       <Form form={form} layout="vertical" onValuesChange={(changed) => patchChanged(changed, updateProps)}>

@@ -17,7 +17,7 @@ import type { CreateProjectOptions } from '../project/ProjectManager';
 import { createProjectFromTemplate, deleteProject as deleteProjectRecordById, openProject as openProjectRecord, renameProject as renameProjectRecordById, saveProjectRecord as saveProjectRecordById } from '../project/ProjectManager';
 import { createNode } from '../registry/createNode';
 import { getComponentDefaultCanvas } from './componentLibraryStore';
-import { loadProject, saveProject, scheduleProjectSave } from './persistence';
+import { flushScheduledProjectSave, loadProject, PROJECT_STORAGE_KEY, saveProject, scheduleProjectSave } from './persistence';
 import { initialProject } from './initialProject';
 import { incrementMetric, measureMetric } from '../editor/performance/performanceMetrics';
 
@@ -490,48 +490,41 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     groupSelectedNodes: () => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
-      const parent = page?.nodes[page.rootNodeId];
       const nodeIds = state.selectedNodeIds.filter((nodeId) => page?.nodes[nodeId]?.canvas && nodeId !== page.rootNodeId);
-      if (!page || !parent?.children || nodeIds.length < 2) return;
-      const canvases = nodeIds.map((nodeId) => page.nodes[nodeId]!.canvas!);
-      const parentFrameId = state.currentFrameId ?? canvases.find((canvas) => canvas.parentFrameId)?.parentFrameId;
-      const left = Math.min(...canvases.map((canvas) => canvas.x));
-      const top = Math.min(...canvases.map((canvas) => canvas.y));
-      const right = Math.max(...canvases.map((canvas) => canvas.x + canvas.width));
-      const bottom = Math.max(...canvases.map((canvas) => canvas.y + canvas.height));
+      if (!page || nodeIds.length < 2) return;
       const groupId = createId('group');
-      const zIndex = parentFrameId ? getNextFrameZIndex(page, parentFrameId) : Math.max(...canvases.map((canvas) => canvas.zIndex)) + 1;
-      state.apply({
-        type: 'groupNodes',
-        pageId: page.id,
-        parentNodeId: parent.id,
-        childNodeIds: nodeIds,
-        groupNode: {
-          id: groupId,
-          type: 'Section',
-          name: 'Group',
-          props: { title: 'Group' },
-          canvas: {
-            x: left,
-            y: top,
-            width: right - left,
-            height: bottom - top,
-            zIndex,
-            ...(parentFrameId ? { parentFrameId } : {}),
-          },
-          semantic: { moduleName: 'Group', moduleType: 'module' },
-          children: nodeIds,
-        },
-      });
-      set({ selectedNodeId: groupId, selectedNodeIds: [groupId] });
+      commitOperations(
+        nodeIds.map((nodeId) => ({
+          type: 'updateNodeCanvas',
+          pageId: page.id,
+          nodeId,
+          canvas: { groupId },
+        })),
+      );
+      set({ selectedNodeId: nodeIds[0], selectedNodeIds: nodeIds });
     },
     ungroupSelectedNode: () => {
       const state = get();
       const page = getPage(state.project, state.currentPageId);
-      const node = state.selectedNodeId ? page?.nodes[state.selectedNodeId] : undefined;
-      if (!page || !node?.children?.length) return;
-      state.apply({ type: 'ungroupNode', pageId: page.id, groupNodeId: node.id });
-      set({ selectedNodeId: node.children[0], selectedNodeIds: [...node.children] });
+      if (!page) return;
+      const selectedGroupIds = new Set(
+        state.selectedNodeIds
+          .map((nodeId) => page.nodes[nodeId]?.canvas?.groupId)
+          .filter((groupId): groupId is string => Boolean(groupId)),
+      );
+      if (selectedGroupIds.size === 0) return;
+      const nodeIds = Object.values(page.nodes)
+        .filter((node) => node.canvas?.groupId && selectedGroupIds.has(node.canvas.groupId))
+        .map((node) => node.id);
+      commitOperations(
+        nodeIds.map((nodeId) => ({
+          type: 'updateNodeCanvas',
+          pageId: page.id,
+          nodeId,
+          canvas: { groupId: null },
+        })),
+      );
+      set({ selectedNodeId: nodeIds[0], selectedNodeIds: nodeIds });
     },
     moveSelectedNode: (direction) => {
       const state = get();
@@ -676,7 +669,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       });
     },
     saveCurrentProject: () => {
-      saveProjectRecordById(get().project);
+      flushScheduledProjectSave();
+      saveProject(get().project);
       set({ dirty: false });
     },
     renameProjectRecord: (projectId, name) => {
@@ -689,3 +683,27 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     },
   };
 });
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    flushScheduledProjectSave();
+  });
+  window.addEventListener('storage', (event) => {
+    if (event.key !== PROJECT_STORAGE_KEY && event.key !== 'admin-prototype-studio.projects.current') return;
+    const nextProject = loadProject();
+    const state = useProjectStore.getState();
+    if (nextProject.id === state.project.id && nextProject.updatedAt === state.project.updatedAt && nextProject === state.project) return;
+    const page = nextProject.pages.find((item) => item.id === state.currentPageId) ?? nextProject.pages[0];
+    const selectedNodeId = state.selectedNodeId && page?.nodes[state.selectedNodeId] ? state.selectedNodeId : page?.rootNodeId;
+    useProjectStore.setState({
+      project: nextProject,
+      currentPageId: page?.id ?? state.currentPageId,
+      currentFrameId: page?.frames?.[0]?.id,
+      selectedNodeId,
+      selectedNodeIds: selectedNodeId ? [selectedNodeId] : [],
+      pastProjects: [],
+      futureProjects: [],
+      dirty: false,
+    });
+  });
+}

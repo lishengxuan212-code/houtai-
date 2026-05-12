@@ -14,7 +14,53 @@ type Props = {
   updateData?: (data: JsonRecord) => void;
   updateEvents?: (events: Record<string, JsonRecord>) => void;
   showTitle?: boolean;
+  hideTopBarProps?: boolean;
 };
+
+const topBarGroupKeys = new Set(['typography', 'color', 'fill', 'background', 'border', 'shadow', 'corner', 'padding', 'size']);
+const topBarPropPaths = new Set([
+  'props.text',
+  'props.title',
+  'props.label',
+  'props.placeholder',
+  'props.fontFamily',
+  'props.fontWeight',
+  'props.fontSize',
+  'props.color',
+  'props.lineHeight',
+  'props.letterSpacing',
+  'props.textAlign',
+  'props.textDecoration',
+  'props.fontStyle',
+  'props.fill',
+  'props.background',
+  'props.backgroundImage',
+  'props.border',
+  'props.borderColor',
+  'props.borderWidth',
+  'props.borderStyle',
+  'props.shadow',
+  'props.innerShadow',
+  'props.radius',
+  'props.borderRadius',
+  'props.padding',
+  'props.paddingLeft',
+  'props.paddingTop',
+  'props.paddingRight',
+  'props.paddingBottom',
+  'props.width',
+  'props.height',
+]);
+
+function removeTopBarProps(groups: ComponentDefinition['propSchema']) {
+  return groups
+    .filter((group) => !topBarGroupKeys.has(group.key) && !topBarGroupKeys.has(group.id))
+    .map((group) => ({
+      ...group,
+      fields: group.fields.filter((field) => !topBarPropPaths.has(field.path)),
+    }))
+    .filter((group) => group.fields.length > 0);
+}
 
 function scopedValue(scopeValue: JsonRecord | undefined, propsFallback: JsonRecord, groups = [] as ComponentDefinition['propSchema']): JsonRecord {
   let next = structuredClone(scopeValue ?? {});
@@ -28,9 +74,10 @@ function scopedValue(scopeValue: JsonRecord | undefined, propsFallback: JsonReco
   return next;
 }
 
-export function GeneratedInspector({ node, nodeName, definition, updateProps, updateContent = () => undefined, updateData = () => undefined, updateEvents = () => undefined, showTitle = false }: Props) {
+export function GeneratedInspector({ node, nodeName, definition, updateProps, updateContent = () => undefined, updateData = () => undefined, updateEvents = () => undefined, showTitle = false, hideTopBarProps = false }: Props) {
   const contentValue = scopedValue(node.content, node.props, definition.contentSchema);
   const dataValue = scopedValue(node.data, node.props, definition.dataSchema);
+  const propSchema = hideTopBarProps ? removeTopBarProps(definition.propSchema) : definition.propSchema;
   return (
     <div className="inspector-stack">
       {showTitle ? (
@@ -38,7 +85,7 @@ export function GeneratedInspector({ node, nodeName, definition, updateProps, up
           {nodeName ?? definition.nameZh} / {definition.nameZh}
         </Typography.Text>
       ) : null}
-      {definition.propSchema.map((group) => (
+      {propSchema.map((group) => (
         <PropGroup key={group.key} group={group} propsValue={node.props} onChange={updateProps} />
       ))}
       {definition.contentSchema?.map((group) => (

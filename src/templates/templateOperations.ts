@@ -189,6 +189,60 @@ function selectTemplateNodes(project: Project, page: Page, rootNodeId: string, o
   return { nodes: collectSubtree(page, rootNodeId), rootNodeId };
 }
 
+function isDescendantOfSelected(page: Page, nodeId: string, selected: Set<string>): boolean {
+  const visit = (candidateId: string): boolean => {
+    const parent = Object.values(page.nodes).find((node) => node.children?.includes(candidateId));
+    if (!parent) return false;
+    if (selected.has(parent.id)) return true;
+    return visit(parent.id);
+  };
+  return visit(nodeId);
+}
+
+export function createTemplateFromSelectedNodes(project: Project, pageId: string, selectedNodeIds: string[], options: SaveTemplateOptions): UserTemplate {
+  const page = project.pages.find((item) => item.id === pageId);
+  if (!page) throw new Error('Cannot create template from missing page');
+  if (options.type === 'page') return createTemplateFromSelection(project, pageId, page.rootNodeId, options);
+
+  const selected = new Set(selectedNodeIds.filter((nodeId) => nodeId !== page.rootNodeId && page.nodes[nodeId]));
+  const rootIds = [...selected].filter((nodeId) => !isDescendantOfSelected(page, nodeId, selected));
+  if (rootIds.length === 0) throw new Error('Cannot create component template without selected nodes');
+
+  const now = new Date().toISOString();
+  const saveOptions = normalizeSaveOptions(options);
+  const nodes = rootIds.reduce<Record<string, ComponentNode>>((result, nodeId) => collectSubtree(page, nodeId, result), {});
+  let rootNodeId = rootIds[0]!;
+  if (rootIds.length > 1) {
+    rootNodeId = createId('template_selection_root');
+    nodes[rootNodeId] = {
+      id: rootNodeId,
+      type: 'PageContainer',
+      name: options.name,
+      props: { title: options.name },
+      children: rootIds,
+    };
+  }
+  const sanitized = sanitizeNodes(nodes, saveOptions);
+  const interactions = templateInteractions(project, sanitized, saveOptions);
+  return {
+    id: createId('template'),
+    name: options.name,
+    type: 'component',
+    category: options.category,
+    content: {
+      nodes: sanitized,
+      rootNodeId,
+      interactions,
+      ...(saveOptions.includeData ? { dataSources: referencedDataSources(sanitized, interactions, project.dataSources) } : {}),
+    },
+    saveOptions,
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
+    ...(options.description ? { description: options.description } : {}),
+  };
+}
+
 export function createTemplateFromSelection(project: Project, pageId: string, rootNodeId: string, options: SaveTemplateOptions): UserTemplate {
   const page = project.pages.find((item) => item.id === pageId);
   if (!page || (!page.nodes[rootNodeId] && options.type !== 'pageFrame' && options.type !== 'canvasBoard')) throw new Error('Cannot create template from missing selection');
@@ -250,7 +304,7 @@ function remapNodeReferences(node: ComponentNode, idMap: Record<string, string>,
 function cloneTemplateNodes(template: UserTemplate, page?: Page, targetFrameId?: string): { nodes: Record<string, ComponentNode>; rootNodeId: string; rootIds: string[]; idMap: Record<string, string> } {
   const sourcePage: Page = { id: 'template_source', name: template.name, route: '/', rootNodeId: template.content.rootNodeId, nodes: template.content.nodes };
   const rootNode = template.content.nodes[template.content.rootNodeId];
-  const rootIds = rootNode?.children?.length && (template.type === 'pageFrame' || template.type === 'canvasBoard') ? rootNode.children : [template.content.rootNodeId];
+  const rootIds = rootNode?.children?.length && ((template.type === 'component' && rootNode.type === 'PageContainer') || template.type === 'pageFrame' || template.type === 'canvasBoard') ? rootNode.children : [template.content.rootNodeId];
   const cloned = cloneNodesWithNewIds(sourcePage, rootIds, {
     idFactory: (oldId) => createId(`${oldId}_tpl`),
     ...(targetFrameId ? { targetFrameId, placeAtHighestLayer: Boolean(page) } : {}),

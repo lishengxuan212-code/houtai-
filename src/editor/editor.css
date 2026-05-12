@@ -245,6 +245,10 @@
   outline-offset: 4px;
 }
 
+.canvas-page-frame .frame-resize-handle {
+  z-index: 1001;
+}
+
 .canvas-page-frame-label {
   position: absolute;
   left: 0;

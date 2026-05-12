@@ -1,0 +1,1 @@
+export const WORKBENCH_MODAL_WIDTH = 980;

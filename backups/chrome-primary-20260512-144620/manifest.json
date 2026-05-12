@@ -1,0 +1,13 @@
+﻿{
+    "createdAt":  "2026-05-12T14:46:22.7343802+08:00",
+    "sourceProfile":  "C:\\Users\\Admin\\AppData\\Local\\Google\\Chrome\\User Data\\Default",
+    "backupRoot":  "E:\\后台系统\\backups\\chrome-primary-20260512-144620",
+    "copied":  [
+                   "Local Storage",
+                   "IndexedDB",
+                   "Session Storage",
+                   "WebStorage",
+                   "Preferences"
+               ],
+    "note":  "Chrome Default profile local web storage snapshot for Admin Prototype Studio. Contains project localStorage and component library settings if saved by the app in this Chrome profile."
+}

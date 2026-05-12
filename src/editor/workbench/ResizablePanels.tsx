@@ -1,21 +1,28 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
-const KEY = 'admin-prototype-studio.workbench-layout';
+const KEY = 'admin-prototype-studio.workbench-layout.v2';
+const DEFAULT_LEFT_WIDTH = 272;
+const DEFAULT_RIGHT_WIDTH = 304;
+const MIN_LEFT_WIDTH = 208;
+const MAX_LEFT_WIDTH = 416;
+const MIN_RIGHT_WIDTH = 240;
+const MAX_RIGHT_WIDTH = 416;
+const DIVIDER_WIDTH = 5;
 
 export function ResizablePanels({ left, center, right }: { left: ReactNode; center: ReactNode; right: ReactNode }) {
   const initial = () => {
-    if (typeof localStorage === 'undefined') return { leftWidth: 340, rightWidth: 380 };
+    if (typeof localStorage === 'undefined') return { leftWidth: DEFAULT_LEFT_WIDTH, rightWidth: DEFAULT_RIGHT_WIDTH };
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { leftWidth: 340, rightWidth: 380 };
+    if (!raw) return { leftWidth: DEFAULT_LEFT_WIDTH, rightWidth: DEFAULT_RIGHT_WIDTH };
     try {
       const parsed = JSON.parse(raw) as { leftWidth?: number; rightWidth?: number };
       return {
-        leftWidth: parsed.leftWidth ?? 340,
-        rightWidth: parsed.rightWidth ?? 380,
+        leftWidth: parsed.leftWidth ?? DEFAULT_LEFT_WIDTH,
+        rightWidth: parsed.rightWidth ?? DEFAULT_RIGHT_WIDTH,
       };
     } catch {
-      return { leftWidth: 340, rightWidth: 380 };
+      return { leftWidth: DEFAULT_LEFT_WIDTH, rightWidth: DEFAULT_RIGHT_WIDTH };
     }
   };
   const [{ leftWidth: initialLeftWidth, rightWidth: initialRightWidth }] = useState(initial);
@@ -33,8 +40,8 @@ export function ResizablePanels({ left, center, right }: { left: ReactNode; cent
       const startLeft = leftWidth;
       const startRight = rightWidth;
       const move = (moveEvent: MouseEvent) => {
-        if (side === 'left') setLeftWidth(Math.min(520, Math.max(260, startLeft + moveEvent.clientX - startX)));
-        if (side === 'right') setRightWidth(Math.min(520, Math.max(300, startRight - (moveEvent.clientX - startX))));
+        if (side === 'left') setLeftWidth(Math.min(MAX_LEFT_WIDTH, Math.max(MIN_LEFT_WIDTH, startLeft + moveEvent.clientX - startX)));
+        if (side === 'right') setRightWidth(Math.min(MAX_RIGHT_WIDTH, Math.max(MIN_RIGHT_WIDTH, startRight - (moveEvent.clientX - startX))));
       };
       const up = () => {
         window.removeEventListener('mousemove', move);
@@ -46,7 +53,7 @@ export function ResizablePanels({ left, center, right }: { left: ReactNode; cent
   }
 
   return (
-    <div className="workbench-grid" style={{ gridTemplateColumns: `${leftWidth}px 6px minmax(0, 1fr) 6px ${rightWidth}px` }}>
+    <div className="workbench-grid" style={{ gridTemplateColumns: `${leftWidth}px ${DIVIDER_WIDTH}px minmax(0, 1fr) ${DIVIDER_WIDTH}px ${rightWidth}px` }}>
       {left}
       <div className="resize-divider" onMouseDown={beginResize('left')} />
       {center}

@@ -4,8 +4,8 @@ import { getCurrentProjectId, loadProjectRecord, saveProjectRecord } from '../pr
 import { initialProject } from './initialProject';
 import { incrementMetric, measureMetric } from '../editor/performance/performanceMetrics';
 
-const STORAGE_KEY = 'admin-prototype-studio.project';
-const SAVE_DEBOUNCE_MS = 250;
+export const PROJECT_STORAGE_KEY = 'admin-prototype-studio.project';
+export const PROJECT_SAVE_IDLE_MS = 60_000;
 let pendingProject: Project | undefined;
 let pendingTimer: number | undefined;
 
@@ -16,7 +16,7 @@ export function loadProject(): Project {
     if (project) return project;
   }
   if (typeof localStorage === 'undefined') return initialProject;
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(PROJECT_STORAGE_KEY);
   if (!raw) return initialProject;
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -29,7 +29,7 @@ export function loadProject(): Project {
 export function saveProject(project: Project): void {
   if (typeof localStorage === 'undefined') return;
   measureMetric('persistenceWrite', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
     saveProjectRecord(project);
   });
   incrementMetric('persistenceWrite');
@@ -44,7 +44,7 @@ export function scheduleProjectSave(project: Project): void {
     pendingProject = undefined;
     pendingTimer = undefined;
     if (next) saveProject(next);
-  }, SAVE_DEBOUNCE_MS);
+  }, PROJECT_SAVE_IDLE_MS);
 }
 
 export function flushScheduledProjectSave(): void {
@@ -59,5 +59,5 @@ export function flushScheduledProjectSave(): void {
 
 export function clearProject(): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(PROJECT_STORAGE_KEY);
 }

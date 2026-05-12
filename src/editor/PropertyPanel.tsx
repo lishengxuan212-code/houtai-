@@ -7,7 +7,7 @@ import { GeneratedInspector } from './inspector/GeneratedInspector';
 import { InspectorStatePanel } from './inspector/InspectorStatePanel';
 import { renderInspector } from './inspector/inspectorRegistry';
 
-export function PropertyPanel() {
+export function PropertyPanel({ showState = true }: { showState?: boolean } = {}) {
   const project = useProjectStore((state) => state.project);
   const pageId = useProjectStore((state) => state.currentPageId);
   const selectedNodeId = useProjectStore((state) => state.selectedNodeId);
@@ -27,7 +27,7 @@ export function PropertyPanel() {
       <Typography.Text strong className="inspector-title">
         {node.name} / {componentLabel(node.type)}
       </Typography.Text>
-      <InspectorStatePanel pageId={page.id} node={node} />
+      {showState ? <InspectorStatePanel pageId={page.id} node={node} /> : null}
       {definition ? (
         <GeneratedInspector
           node={node}
@@ -36,9 +36,10 @@ export function PropertyPanel() {
           updateContent={updateSelectedContent}
           updateData={updateSelectedData}
           updateEvents={updateSelectedEvents}
+          hideTopBarProps={!showState}
         />
       ) : (
-        renderInspector(node.type, { node, descriptor: descriptor!, updateProps: updateSelectedProps })
+        renderInspector(node.type, { node, descriptor: descriptor!, updateProps: updateSelectedProps, hideTopBarProps: !showState })
       )}
     </div>
   );

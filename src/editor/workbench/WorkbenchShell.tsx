@@ -7,6 +7,7 @@ import { LeftNavigatorPanel } from './LeftNavigatorPanel';
 import { LibraryDockPanel } from './LibraryDockPanel';
 import { ResizablePanels } from './ResizablePanels';
 import { RightInspectorPanel } from './RightInspectorPanel';
+import { TopPropertyBar } from './TopPropertyBar';
 import { TopToolbar } from './TopToolbar';
 
 function LeftWorkbench() {
@@ -34,7 +35,10 @@ export function WorkbenchShell({ onBackHome }: { onBackHome?: (() => void) | und
           </RuntimeProvider>
         </div>
       ) : (
-        <ResizablePanels left={<LeftWorkbench />} center={<AssemblyCanvas />} right={<RightInspectorPanel />} />
+        <>
+          <TopPropertyBar />
+          <ResizablePanels left={<LeftWorkbench />} center={<AssemblyCanvas />} right={<RightInspectorPanel />} />
+        </>
       )}
     </div>
   );

@@ -29,6 +29,7 @@ export type NodeCanvasConfig = {
   hidden?: boolean;
   rotation?: number;
   parentFrameId?: string;
+  groupId?: string | null;
 };
 
 export type ComponentSemantic = {

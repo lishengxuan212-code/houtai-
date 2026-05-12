@@ -5,6 +5,40 @@ import { componentLabel } from '../../registry/componentLabels';
 import { AdvancedJsonEditor } from './AdvancedJsonEditor';
 import type { InspectorProps } from './types';
 
+const topBarEditableKeys = new Set([
+  'text',
+  'title',
+  'label',
+  'placeholder',
+  'fontFamily',
+  'fontWeight',
+  'fontSize',
+  'color',
+  'lineHeight',
+  'letterSpacing',
+  'textAlign',
+  'textDecoration',
+  'fontStyle',
+  'fill',
+  'background',
+  'backgroundImage',
+  'border',
+  'borderColor',
+  'borderWidth',
+  'borderStyle',
+  'shadow',
+  'innerShadow',
+  'radius',
+  'borderRadius',
+  'padding',
+  'paddingLeft',
+  'paddingTop',
+  'paddingRight',
+  'paddingBottom',
+  'width',
+  'height',
+]);
+
 function controlFor(prop: EditableProp) {
   switch (prop.control) {
     case 'textarea':
@@ -22,9 +56,9 @@ function controlFor(prop: EditableProp) {
   }
 }
 
-export function GenericInspector({ node, descriptor, updateProps }: InspectorProps) {
+export function GenericInspector({ node, descriptor, updateProps, hideTopBarProps = false }: InspectorProps & { hideTopBarProps?: boolean }) {
   const [form] = Form.useForm();
-  const scalarProps = descriptor.editableProps.filter((prop) => prop.control !== 'json');
+  const scalarProps = descriptor.editableProps.filter((prop) => prop.control !== 'json' && (!hideTopBarProps || !topBarEditableKeys.has(prop.key)));
 
   useEffect(() => {
     form.setFieldsValue(Object.fromEntries(scalarProps.map((prop) => [prop.key, node.props[prop.key]])));

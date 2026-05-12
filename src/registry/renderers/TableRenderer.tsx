@@ -113,42 +113,14 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
   const rawColumns = tableColumns(normalizeColumns(node.props.columns), normalizeActionItems(node.props.actions), node.props.rowActions);
   const rows = dataRows.length ? dataRows : exampleRows(rawColumns);
 
-  if (context.mode === 'edit') {
-    return (
-      <div className="design-table-renderer" data-testid={`design-renderer-${node.id}`}>
-        <div className="design-table-header">
-          {rawColumns.map((column) => (
-            <span key={column.key}>
-              {context.inlineEdit?.arrayItemText({ node, arrayProp: 'columns', itemKey: column.key, labelKey: 'title', value: column.title }) ?? column.title}
-            </span>
-          ))}
-        </div>
-        {rows.slice(0, 5).map((row, index) => (
-          <div className="design-table-row" key={String(row.id ?? row.key ?? index)}>
-            {rawColumns.map((column) =>
-              column.actionItems?.length ? (
-                <span className="design-table-actions" key={column.key}>
-                  {column.actionItems.map((action) => (
-                    <b key={action}>{action}</b>
-                  ))}
-                </span>
-              ) : (
-                <span key={column.key}>
-                  {context.inlineEdit?.tableCellText?.({ node, rowIndex: index, columnKey: column.key, value: readableCell(row[column.key] ?? '-') }) ?? readableCell(row[column.key] ?? '-')}
-                </span>
-              ),
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   const columns: ColumnsType<JsonRecord> = rawColumns.map((column) => ({
-    title: column.title,
+    title:
+      context.mode === 'edit'
+        ? (context.inlineEdit?.arrayItemText({ node, arrayProp: 'columns', itemKey: column.key, labelKey: 'title', value: column.title }) ?? column.title)
+        : column.title,
     dataIndex: column.key,
     key: column.key,
-    render: (value, row) =>
+    render: (value, row, index) =>
       column.actionItems?.length ? (
         <Space>
           {column.actionItems.map((action) => (
@@ -170,7 +142,9 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
           ))}
         </Space>
       ) : (
-        readableCell(value)
+        (context.mode === 'edit'
+          ? (context.inlineEdit?.tableCellText?.({ node, rowIndex: index, columnKey: column.key, value: readableCell(value) }) ?? readableCell(value))
+          : readableCell(value))
       ),
   }));
 

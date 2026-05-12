@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHistoryEntry, mergeConsecutiveTextEdits } from '../domain/history';
 import type { Project } from '../domain/types';
-import { flushScheduledProjectSave, scheduleProjectSave } from '../store/persistence';
+import { flushScheduledProjectSave, PROJECT_SAVE_IDLE_MS, scheduleProjectSave } from '../store/persistence';
 
 const storage = new Map<string, string>();
 
@@ -49,7 +49,10 @@ describe('persistence and history performance', () => {
 
     expect(localStorage.getItem('admin-prototype-studio.project')).toBeNull();
 
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(PROJECT_SAVE_IDLE_MS - 1);
+    expect(localStorage.getItem('admin-prototype-studio.project')).toBeNull();
+
+    vi.advanceTimersByTime(1);
 
     const saved = JSON.parse(localStorage.getItem('admin-prototype-studio.project') ?? '{}') as Project;
     expect(saved.name).toBe('third');

@@ -23,97 +23,64 @@ function columnsFromProps(node: NodeRendererProps['node'], context: NodeRenderer
   }));
 }
 
-function DesignTablePreview({ node, context, editable = false }: NodeRendererProps & { editable?: boolean }) {
-  const rows = asArray<JsonRecord>(node.data?.rows ?? node.props.data, []);
-  const columns = asArray<ProColumn>(node.props.columns, []);
-  return (
-    <div className="design-table-renderer" data-testid={`design-renderer-${node.id}`}>
-      <div className="design-table-title">{asString(node.props.headerTitle, editable ? 'EditableProTable' : 'ProTable')}</div>
-      {node.props.search ? <div className="design-table-search">Search fields: {columns.filter((column) => column.search).map((column) => column.title).join(' / ') || '-'}</div> : null}
-      <div className="design-table-header">
-        {columns.map((column) => (
-          <span key={column.key}>
-            {context.inlineEdit?.arrayItemText({ node, arrayProp: 'columns', itemKey: column.key, labelKey: 'title', value: column.title }) ?? column.title}
-          </span>
-        ))}
-        {editable ? <span>Edit</span> : null}
-      </div>
-      {(rows.length ? rows.slice(0, 5) : [{}]).map((row, index) => (
-        <div className="design-table-row" key={String(row.id ?? row.key ?? index)}>
-          {columns.map((column) => (
-            <span key={column.key}>{String(row[column.key] ?? '-')}</span>
-          ))}
-          {editable ? <span>Editable</span> : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DesignFormPreview({ node, context }: NodeRendererProps) {
-  const fields = asArray<FieldConfig>(node.content?.fields ?? node.props.fields, []);
-  return (
-    <div className="design-form-renderer" data-testid={`design-renderer-${node.id}`}>
-      <div className="design-form-title">{asString(node.props.title, 'ProForm')}</div>
-      {fields.map((field) => (
-        <label className="design-form-field" key={field.key}>
-          <span>{context.inlineEdit?.arrayItemText({ node, arrayProp: 'fields', itemKey: field.key, labelKey: 'label', value: field.label }) ?? field.label}</span>
-          <div className="design-form-control">{field.type}</div>
-        </label>
-      ))}
-      <div className="design-form-actions">{asString(node.props.submitText, '提交')}</div>
-    </div>
-  );
+function rowsFromNode(node: NodeRendererProps['node'], context: NodeRendererProps['context']): JsonRecord[] {
+  const dataSourceId = asString(node.props.dataSourceId, '');
+  const configuredRows = asArray<JsonRecord>(node.data?.rows ?? node.props.data, []);
+  return configuredRows.length ? configuredRows : (context.getData?.(dataSourceId) ?? []);
 }
 
 export function ProTableAdapter({ node, context }: NodeRendererProps) {
-  if (context.mode === 'edit') return <DesignTablePreview node={node} context={context} />;
-  const rows = asArray<JsonRecord>(node.data?.rows ?? node.props.data, []);
+  const rows = rowsFromNode(node, context);
+  const searchableColumns = asArray<ProColumn>(node.props.columns, []).filter((column) => column.search);
   return (
     <Card size="small" title={asString(node.props.headerTitle, '数据列表')}>
       {node.props.search ? (
-        <Space style={{ marginBottom: 12 }}>
-          {asArray<ProColumn>(node.props.columns, [])
-            .filter((column) => column.search)
-            .map((column) => (
-              <Input key={column.key} placeholder={column.title} />
-            ))}
+        <Space style={{ marginBottom: 12 }} wrap>
+          {searchableColumns.map((column) => (
+            <Input key={column.key} placeholder={column.title} />
+          ))}
           <Button type="primary">查询</Button>
           <Button>重置</Button>
         </Space>
       ) : null}
-      <Table size="small" rowKey={(row) => String(row.id ?? row.key ?? JSON.stringify(row))} columns={columnsFromProps(node, context)} dataSource={rows} pagination={node.props.pagination ? { pageSize: 5 } : false} locale={{ emptyText: asString(node.props.emptyText, '暂无数据') }} />
+      <Table
+        size="small"
+        rowKey={(row) => String(row.id ?? row.key ?? JSON.stringify(row))}
+        columns={columnsFromProps(node, context)}
+        dataSource={rows}
+        pagination={node.props.pagination ? { pageSize: 5 } : false}
+        locale={{ emptyText: asString(node.props.emptyText, '暂无数据') }}
+      />
     </Card>
   );
 }
 
 export function EditableProTableAdapter(props: NodeRendererProps) {
-  if (props.context.mode === 'edit') return <DesignTablePreview {...props} editable />;
   return <ProTableAdapter {...props} />;
 }
 
 export function ProFormAdapter({ node, context }: NodeRendererProps) {
   const [form] = Form.useForm();
-  if (context.mode === 'edit') return <DesignFormPreview node={node} context={context} />;
   const fields = asArray<FieldConfig>(node.content?.fields ?? node.props.fields, []);
   return (
     <Card size="small" title={asString(node.props.title, '业务表单')}>
       <Form form={form} layout={asString(node.props.layout, 'vertical') as 'vertical' | 'horizontal' | 'inline'} requiredMark={Boolean(node.props.requiredMark)} onFinish={(values) => context.dispatch?.({ componentId: node.id, event: 'submit', payload: { values, formId: node.id } })}>
         {fields.map((field) => {
+          const fallbackLabel = field.label || field.key;
           const label =
             context.mode === 'edit'
-              ? (context.inlineEdit?.arrayItemText({ node, arrayProp: 'fields', itemKey: field.key, labelKey: 'label', value: field.label }) ?? field.label)
-              : field.label;
+              ? (context.inlineEdit?.arrayItemText({ node, arrayProp: 'fields', itemKey: field.key, labelKey: 'label', value: fallbackLabel }) ?? fallbackLabel)
+              : fallbackLabel;
           return (
-          <Form.Item key={field.key} name={field.key} label={label} rules={[{ required: Boolean(field.required), message: `请输入${field.label}` }]}>
-            {field.type === 'number' || field.type === 'money' ? (
-              <InputNumber style={{ width: '100%' }} />
-            ) : field.type === 'select' || field.type === 'status' ? (
-              <Select options={(field.options ?? []).map((item) => ({ label: item, value: item }))} />
-            ) : (
-              <Input />
-            )}
-          </Form.Item>
+            <Form.Item key={field.key} name={field.key} label={label} rules={[{ required: Boolean(field.required), message: `请输入${fallbackLabel}` }]}>
+              {field.type === 'number' || field.type === 'money' ? (
+                <InputNumber style={{ width: '100%' }} />
+              ) : field.type === 'select' || field.type === 'status' ? (
+                <Select options={(field.options ?? []).map((item) => ({ label: item, value: item }))} />
+              ) : (
+                <Input />
+              )}
+            </Form.Item>
           );
         })}
         <Form.Item>

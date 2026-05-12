@@ -4,4 +4,5 @@ export type InspectorProps = {
   node: ComponentNode;
   descriptor: ComponentDescriptor;
   updateProps: (props: JsonRecord) => void;
+  hideTopBarProps?: boolean;
 };

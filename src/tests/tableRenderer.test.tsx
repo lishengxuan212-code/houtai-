@@ -102,7 +102,7 @@ describe('TableRenderer', () => {
     expect(screen.getAllByText('已发布').length).toBeGreaterThan(0);
     expect(screen.getAllByText('取消发布').length).toBeGreaterThan(0);
     expect(screen.getAllByText('下载').length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('.design-table-header span')).toHaveLength(10);
+    expect(container.querySelectorAll('.ant-table-thead th')).toHaveLength(10);
   });
 
   it('renders grouped rowActions as separate preview buttons without dropping columns', () => {

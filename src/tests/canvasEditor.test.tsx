@@ -224,6 +224,24 @@ describe('AssemblyCanvas page-frame editor', () => {
     });
   });
 
+  it('resizes the page frame from corner handles', async () => {
+    mockCanvasRects();
+    render(<AssemblyCanvas />);
+
+    await screen.findByTestId('canvas-page-frame');
+    await waitFor(() => {
+      expect(useProjectStore.getState().project.pages[0]!.frames?.[0]?.id).toBe('frame_page_canvas_default');
+    });
+
+    fireEvent.mouseDown(screen.getByLabelText('resize-frame-se'), { clientX: 1300, clientY: 840, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 1360, clientY: 880 });
+    fireEvent.mouseUp(window);
+
+    await waitFor(() => {
+      expect(useProjectStore.getState().project.pages[0]!.frames?.[0]).toMatchObject({ width: 1260, height: 800 });
+    });
+  });
+
   it('moves all selected canvas nodes together when dragging one selected node', async () => {
     replaceProject(projectWithThreeButtons());
     mockCanvasRects();
@@ -288,12 +306,16 @@ describe('AssemblyCanvas page-frame editor', () => {
     fireEvent.keyDown(document, { key: 'g', ctrlKey: true });
 
     const grouped = useProjectStore.getState();
-    const groupId = grouped.selectedNodeId!;
-    expect(grouped.project.pages[0]!.nodes[groupId]?.children).toEqual(['button_one', 'button_two']);
+    const groupId = grouped.project.pages[0]!.nodes.button_one?.canvas?.groupId;
+    expect(groupId).toBeTruthy();
+    expect(grouped.project.pages[0]!.nodes.button_two?.canvas?.groupId).toBe(groupId);
+    expect(grouped.project.pages[0]!.nodes.root?.children).toEqual(['button_one', 'button_two', 'button_three']);
+    expect(grouped.selectedNodeIds).toEqual(['button_one', 'button_two']);
 
     fireEvent.keyDown(document, { key: 'G', ctrlKey: true, shiftKey: true });
 
-    expect(useProjectStore.getState().project.pages[0]!.nodes[groupId]).toBeUndefined();
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas?.groupId).toBeUndefined();
+    expect(useProjectStore.getState().project.pages[0]!.nodes.button_two?.canvas?.groupId).toBeUndefined();
     expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one', 'button_two']);
   });
 
@@ -447,8 +469,11 @@ describe('AssemblyCanvas page-frame editor', () => {
     fireEvent.contextMenu(screen.getByTestId('canvas-node-button_two'));
     fireEvent.click(screen.getByLabelText('context-group'));
 
-    const groupId = useProjectStore.getState().selectedNodeId!;
-    expect(useProjectStore.getState().project.pages[0]!.nodes[groupId]?.children).toEqual(['button_one', 'button_two']);
+    const page = useProjectStore.getState().project.pages[0]!;
+    const groupId = page.nodes.button_one?.canvas?.groupId;
+    expect(groupId).toBeTruthy();
+    expect(page.nodes.button_two?.canvas?.groupId).toBe(groupId);
+    expect(page.nodes.root?.children).toEqual(['button_one', 'button_two', 'button_three']);
   });
 
   it('handles delete undo redo and layer ordering shortcuts without firing inside inputs', async () => {
@@ -517,7 +542,7 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(nodes.button_three).toBeDefined();
   });
 
-  it('groups and ungroups selected canvas nodes through project operations', () => {
+  it('binds and unbinds selected canvas nodes as a group without wrapping them', () => {
     const project: Project = structuredClone(baseProject);
     project.pages[0]!.nodes.button_two = {
       id: 'button_two',
@@ -533,47 +558,57 @@ describe('AssemblyCanvas page-frame editor', () => {
     useProjectStore.getState().groupSelectedNodes();
 
     const groupedState = useProjectStore.getState();
-    const groupId = groupedState.selectedNodeId!;
-    const group = groupedState.project.pages[0]!.nodes[groupId]!;
-    expect(group.type).toBe('Section');
-    expect(group.children).toEqual(['button_one', 'button_two']);
-    expect(group.canvas).toMatchObject({ x: 64, y: 72, width: 376, height: 136, parentFrameId: 'frame_page_canvas_default' });
-    expect(groupedState.project.pages[0]!.nodes.root?.children).toEqual([groupId]);
+    const groupedPage = groupedState.project.pages[0]!;
+    const groupId = groupedPage.nodes.button_one?.canvas?.groupId;
+    expect(groupId).toBeTruthy();
+    expect(groupedPage.nodes.button_two?.canvas?.groupId).toBe(groupId);
+    expect(groupedPage.nodes.root?.children).toEqual(['button_one', 'button_two']);
+    expect(groupedState.selectedNodeIds).toEqual(['button_one', 'button_two']);
 
     groupedState.ungroupSelectedNode();
 
     const ungroupedPage = useProjectStore.getState().project.pages[0]!;
-    expect(ungroupedPage.nodes[groupId]).toBeUndefined();
+    expect(ungroupedPage.nodes.button_one?.canvas?.groupId).toBeUndefined();
+    expect(ungroupedPage.nodes.button_two?.canvas?.groupId).toBeUndefined();
     expect(ungroupedPage.nodes.root?.children).toEqual(['button_one', 'button_two']);
   });
 
-  it('places a new group above the active frame layer stack', () => {
+  it('keeps grouped nodes selectable and movable through the binding', () => {
     replaceProject(projectWithThreeButtons());
 
     useProjectStore.getState().selectNodes(['button_one', 'button_two']);
     useProjectStore.getState().groupSelectedNodes();
+    useProjectStore.getState().selectNode('button_one');
+    const groupId = useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas?.groupId;
+    const page = useProjectStore.getState().project.pages[0]!;
+    const groupedNodeIds = Object.values(page.nodes)
+      .filter((node) => node.canvas?.groupId === groupId)
+      .map((node) => node.id);
+    useProjectStore.getState().selectNodes(groupedNodeIds);
+    useProjectStore.getState().moveSelectedCanvasBy('button_one', 12, 10);
 
-    const groupedState = useProjectStore.getState();
-    const group = groupedState.selectedNodeId ? groupedState.project.pages[0]!.nodes[groupedState.selectedNodeId] : undefined;
-    expect(group?.canvas?.zIndex).toBe(7);
+    const nodes = useProjectStore.getState().project.pages[0]!.nodes;
+    expect(nodes.button_one?.canvas).toMatchObject({ x: 76, y: 82, groupId });
+    expect(nodes.button_two?.canvas).toMatchObject({ x: 272, y: 170, groupId });
   });
 
-  it('saves a selected group as a reusable group template', () => {
+  it('keeps grouped nodes as individual nodes for template selection', () => {
     replaceProject(projectWithThreeButtons());
 
     useProjectStore.getState().selectNodes(['button_one', 'button_two']);
     useProjectStore.getState().groupSelectedNodes();
-    const groupId = useProjectStore.getState().selectedNodeId!;
+    const groupId = useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas?.groupId;
     const { project } = useProjectStore.getState();
-    const template = createTemplateFromSelection(project, 'page_canvas', groupId, {
+    const template = createTemplateFromSelection(project, 'page_canvas', 'button_one', {
       name: 'Order action group',
       type: 'group',
       category: '业务模块',
     });
     saveUserTemplate(template);
 
-    expect(listUserTemplates()[0]).toMatchObject({ type: 'group', content: { rootNodeId: groupId } });
-    expect(Object.keys(listUserTemplates()[0]!.content.nodes).sort()).toEqual(['button_one', 'button_two', groupId].sort());
+    expect(listUserTemplates()[0]).toMatchObject({ type: 'group', content: { rootNodeId: 'button_one' } });
+    expect(listUserTemplates()[0]!.content.nodes.button_one?.canvas?.groupId).toBe(groupId);
+    expect(Object.keys(listUserTemplates()[0]!.content.nodes)).toEqual(['button_one']);
   });
 
   it('pans the canvas while Space is held without changing project data', async () => {

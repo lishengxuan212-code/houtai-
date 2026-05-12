@@ -22,6 +22,8 @@ const DEFAULT_FRAME_HEIGHT = 760;
 const CANVAS_PADDING = 160;
 const MIN_NODE_WIDTH = 80;
 const MIN_NODE_HEIGHT = 36;
+const MIN_FRAME_WIDTH = 320;
+const MIN_FRAME_HEIGHT = 240;
 const EDITABLE_SHORTCUT_SELECTOR = [
   'input',
   'textarea',
@@ -82,6 +84,7 @@ function fallbackCanvasForNode(node: ComponentNode, index: number, frameId: stri
     ...(node.canvas?.locked !== undefined ? { locked: node.canvas.locked } : {}),
     ...(node.canvas?.hidden !== undefined ? { hidden: node.canvas.hidden } : {}),
     ...(node.canvas?.rotation !== undefined ? { rotation: node.canvas.rotation } : {}),
+    ...(node.canvas?.groupId !== undefined ? { groupId: node.canvas.groupId } : {}),
     parentFrameId: node.canvas?.parentFrameId ?? frameId,
   };
 }
@@ -92,6 +95,14 @@ function buildParentMap(page: Page) {
     node.children?.forEach((childId) => parents.set(childId, node.id));
   }
   return parents;
+}
+
+function groupedNodeIds(page: Page, node: ComponentNode) {
+  const groupId = node.canvas?.groupId;
+  if (!groupId) return [node.id];
+  return Object.values(page.nodes)
+    .filter((candidate) => candidate.canvas?.groupId === groupId)
+    .map((candidate) => candidate.id);
 }
 
 function isEditableShortcutTarget(target: EventTarget | null) {
@@ -222,7 +233,6 @@ function CanvasNodeFrame({
   incrementMetric('nodeRender');
   const selectedNodeIds = useProjectStore((state) => state.selectedNodeIds);
   const apply = useProjectStore((state) => state.apply);
-  const selectNode = useProjectStore((state) => state.selectNode);
   const selectNodes = useProjectStore((state) => state.selectNodes);
   const deleteSelectedNode = useProjectStore((state) => state.deleteSelectedNode);
   const beginInteraction = useCanvasInteractionStore((state) => state.beginInteraction);
@@ -253,8 +263,9 @@ function CanvasNodeFrame({
     if (event.button !== 0 || locked || (event.target as HTMLElement).closest('.canvas-node-toolbar, .resize-handle, .inline-edit-text, .inline-edit-input')) return;
     event.preventDefault();
     event.stopPropagation();
-    const dragSelection = selectedNodeIds.includes(node.id) ? selectedNodeIds : [node.id];
-    if (!selectedNodeIds.includes(node.id)) selectNode(node.id);
+    const relatedNodeIds = groupedNodeIds(page, node);
+    const dragSelection = selectedNodeIds.includes(node.id) ? selectedNodeIds : relatedNodeIds;
+    if (!selectedNodeIds.includes(node.id)) selectNodes(relatedNodeIds);
 
     const startX = event.clientX;
     const startY = event.clientY;
@@ -395,17 +406,21 @@ function CanvasNodeFrame({
       onClick={(event) => {
         event.stopPropagation();
         if (event.shiftKey) {
-          const next = selectedNodeIds.includes(node.id) ? selectedNodeIds.filter((selectedId) => selectedId !== node.id) : [...selectedNodeIds, node.id];
+          const relatedNodeIds = groupedNodeIds(page, node);
+          const next = selectedNodeIds.includes(node.id)
+            ? selectedNodeIds.filter((selectedId) => !relatedNodeIds.includes(selectedId))
+            : [...new Set([...selectedNodeIds, ...relatedNodeIds])];
           selectNodes(next);
           return;
         }
-        selectNode(node.id);
+        const relatedNodeIds = groupedNodeIds(page, node);
+        selectNodes(relatedNodeIds);
       }}
       onMouseDown={startDrag}
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (!selectedNodeIds.includes(node.id)) selectNode(node.id);
+        if (!selectedNodeIds.includes(node.id)) selectNodes(groupedNodeIds(page, node));
         onContextMenu({ x: canvas.x + 12, y: canvas.y + 12 });
       }}
     >
@@ -461,6 +476,7 @@ export function AssemblyCanvas() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | undefined>();
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | undefined>();
+  const [frameResizePreview, setFrameResizePreview] = useState<PageFrame | undefined>();
   const [viewportBox, setViewportBox] = useState({ scrollLeft: 0, scrollTop: 0, width: 0, height: 0 });
   const [viewportPanning, setViewportPanning] = useState(false);
   const project = useProjectStore((state) => state.project);
@@ -663,6 +679,8 @@ export function AssemblyCanvas() {
 
   if (!page || !pageFrame) return null;
 
+  const visualPageFrame = frameResizePreview ?? pageFrame;
+
   function handleWheel(event: WheelEvent<HTMLElement>) {
     if (!event.ctrlKey && !event.metaKey) return;
     if (isEditableShortcutTarget(event.target)) return;
@@ -759,6 +777,68 @@ export function AssemblyCanvas() {
     window.addEventListener('mouseup', onUp, { once: true });
   }
 
+  function startFrameResize(handle: ResizeHandle) {
+    return (event: ReactMouseEvent<HTMLSpanElement>) => {
+      if (spacePanActive || !page || !pageFrame || selectedNodeId !== page.rootNodeId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startFrame = { ...pageFrame };
+      let latestFrame = startFrame;
+      let animationFrame: number | undefined;
+
+      const onMove = (moveEvent: globalThis.MouseEvent) => {
+        const deltaX = (moveEvent.clientX - startX) / zoom;
+        const deltaY = (moveEvent.clientY - startY) / zoom;
+        const next: Partial<PageFrame> = {};
+
+        if (handle.includes('w')) {
+          const width = Math.max(MIN_FRAME_WIDTH, startFrame.width - deltaX);
+          next.width = Math.round(width);
+          next.x = Math.round(startFrame.x + startFrame.width - width);
+        } else if (handle.includes('e')) {
+          next.width = Math.max(MIN_FRAME_WIDTH, Math.round(startFrame.width + deltaX));
+        }
+
+        if (handle.includes('n')) {
+          const height = Math.max(MIN_FRAME_HEIGHT, startFrame.height - deltaY);
+          next.height = Math.round(height);
+          next.y = Math.round(startFrame.y + startFrame.height - height);
+        } else if (handle.includes('s')) {
+          next.height = Math.max(MIN_FRAME_HEIGHT, Math.round(startFrame.height + deltaY));
+        }
+
+        latestFrame = { ...startFrame, ...next };
+        if (animationFrame !== undefined) return;
+        animationFrame = window.requestAnimationFrame(() => {
+          animationFrame = undefined;
+          setFrameResizePreview(latestFrame);
+        });
+      };
+
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
+        setFrameResizePreview(undefined);
+        apply({
+          type: 'updatePageFrame',
+          pageId: page.id,
+          frameId: pageFrame.id,
+          patch: {
+            x: latestFrame.x,
+            y: latestFrame.y,
+            width: latestFrame.width,
+            height: latestFrame.height,
+          },
+        });
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp, { once: true });
+    };
+  }
+
   function closeContextMenu() {
     setContextMenu(undefined);
   }
@@ -811,16 +891,16 @@ export function AssemblyCanvas() {
       <div
         className="canvas-scroll-sizer"
         style={{
-          width: Math.ceil((CANVAS_PADDING * 2 + pageFrame.x + pageFrame.width) * zoom),
-          height: Math.ceil((CANVAS_PADDING * 2 + pageFrame.y + pageFrame.height) * zoom),
+          width: Math.ceil((CANVAS_PADDING * 2 + visualPageFrame.x + visualPageFrame.width) * zoom),
+          height: Math.ceil((CANVAS_PADDING * 2 + visualPageFrame.y + visualPageFrame.height) * zoom),
         }}
       >
         <div
           className="assembly-zoom-surface canvas-workspace"
           style={{
             transform: `scale(${zoom})`,
-            width: CANVAS_PADDING * 2 + pageFrame.x + pageFrame.width,
-            height: CANVAS_PADDING * 2 + pageFrame.y + pageFrame.height,
+            width: CANVAS_PADDING * 2 + visualPageFrame.x + visualPageFrame.width,
+            height: CANVAS_PADDING * 2 + visualPageFrame.y + visualPageFrame.height,
             padding: CANVAS_PADDING,
           }}
         >
@@ -828,7 +908,7 @@ export function AssemblyCanvas() {
           ref={frameRef}
           data-testid="canvas-page-frame"
           className={`canvas-page-frame${selectedNodeId === page.rootNodeId ? ' selected' : ''}`}
-          style={{ width: pageFrame.width, height: pageFrame.height, marginLeft: pageFrame.x, marginTop: pageFrame.y, background: pageFrame.background?.color ?? '#ffffff' }}
+          style={{ width: visualPageFrame.width, height: visualPageFrame.height, marginLeft: visualPageFrame.x, marginTop: visualPageFrame.y, background: pageFrame.background?.color ?? '#ffffff' }}
           onClick={(event) => {
             event.stopPropagation();
             if (suppressNextFrameClick.current) {
@@ -857,6 +937,11 @@ export function AssemblyCanvas() {
           }}
         >
           <div className="canvas-page-frame-label">{pageFrame.name}</div>
+          {selectedNodeId === page.rootNodeId
+            ? (['nw', 'ne', 'sw', 'se'] as const).map((handle) => (
+                <span aria-label={`resize-frame-${handle}`} className={`resize-handle frame-resize-handle ${handle}`} key={handle} onMouseDown={startFrameResize(handle)} />
+              ))
+            : null}
           {selectionBox ? (
             <div
               className="canvas-selection-box"

@@ -1,12 +1,11 @@
-import { Alert, Button, Divider, Input, List, Space, Tag, Typography, Upload } from 'antd';
-import type { UploadFile } from 'antd';
-import { useState } from 'react';
+import { Alert, Button, Input, Modal, Space, Typography } from 'antd';
+import { ImagePlus, Settings } from 'lucide-react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { generatePrototypePlanWithTextModel, generatePrototypePlanWithVisionModel } from '../ai/doubaoPrototypeApi';
 import { applyImagePrototypePlan, inferImagePrototypePlan, type ImagePrototypeAnalysis, type ImagePrototypePlan, type ImageRegion, type ImageTextItem } from '../ai/imagePrototype';
-import { isModelConfigured, loadAiModelSettings, saveAiModelSettings, type AiModelSettings } from '../ai/modelSettings';
-import { runAiRules } from '../ai/rules';
-import type { AiSuggestion } from '../domain/types';
+import { AI_MODEL_SETTINGS_STORAGE_KEY, isModelConfigured, loadAiModelSettings, saveAiModelSettings, type AiModelSettings } from '../ai/modelSettings';
 import { useProjectStore } from '../store/projectStore';
+import { WORKBENCH_MODAL_WIDTH } from './workbench/modalConstants';
 
 type OcrWord = {
   text?: unknown;
@@ -183,20 +182,29 @@ export function AiPanel() {
   const currentPageId = useProjectStore((state) => state.currentPageId);
   const currentFrameId = useProjectStore((state) => state.currentFrameId);
   const commitProject = useProjectStore((state) => state.commitProject);
-  const [suggestions, setSuggestions] = useState<AiSuggestion[]>([]);
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | undefined>();
   const [plan, setPlan] = useState<ImagePrototypePlan | undefined>();
   const [modelSettings, setModelSettings] = useState<AiModelSettings>(() => loadAiModelSettings());
   const [modelStatus, setModelStatus] = useState<string | undefined>();
   const [generating, setGenerating] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   function updateModelSettings(next: AiModelSettings) {
     setModelSettings(next);
     saveAiModelSettings(next);
   }
 
+  useEffect(() => {
+    const syncModelSettings = (event: StorageEvent) => {
+      if (event.key === AI_MODEL_SETTINGS_STORAGE_KEY) setModelSettings(loadAiModelSettings());
+    };
+    window.addEventListener('storage', syncModelSettings);
+    return () => window.removeEventListener('storage', syncModelSettings);
+  }, []);
+
   async function generateFromUpload() {
-    const file = fileList[0]?.originFileObj;
+    const file = selectedFile;
     if (!file) return;
     setGenerating(true);
     setModelStatus(undefined);
@@ -241,100 +249,117 @@ export function AiPanel() {
     }
   }
 
+  function chooseFile(file: File | undefined) {
+    if (!file) return;
+    setSelectedFile(file);
+    setPlan(undefined);
+    setModelStatus(undefined);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    chooseFile(Array.from(event.dataTransfer.files).find((file) => file.type.startsWith('image/')));
+  }
+
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <section>
-        <Typography.Text strong>规则检查</Typography.Text>
-        <Button type="primary" block style={{ marginTop: 8 }} onClick={() => setSuggestions(runAiRules(project))}>
-          检查当前项目
-        </Button>
-        <Alert style={{ margin: '12px 0' }} type="info" showIcon message="点击按钮后运行规则检查，编辑过程不会自动触发 AI 检查。" />
-        <List
-          size="small"
-          dataSource={suggestions}
-          locale={{ emptyText: '点击按钮运行检查' }}
-          renderItem={(item) => (
-            <List.Item>
-              <List.Item.Meta
-                title={
-                  <>
-                    <Tag color={item.severity === 'error' ? 'red' : item.severity === 'warning' ? 'orange' : 'blue'}>{item.severity}</Tag>
-                    {item.title}
-                  </>
-                }
-                description={item.description}
-              />
-            </List.Item>
-          )}
-        />
-      </section>
-
-      <section>
-        <Typography.Text strong>AI 模型配置</Typography.Text>
-        <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 12 }}>
-          <Typography.Text type="secondary">{modelSettings.visionStructure.label}</Typography.Text>
-          <Input
-            addonBefore="API 地址"
-            value={modelSettings.visionStructure.apiUrl}
-            onChange={(event) => updateModelSettings({ ...modelSettings, visionStructure: { ...modelSettings.visionStructure, apiUrl: event.target.value } })}
-          />
-          <Input.Password
-            addonBefore="API Key"
-            value={modelSettings.visionStructure.apiKey}
-            placeholder="填写你的视觉理解模型 API Key"
-            onChange={(event) => updateModelSettings({ ...modelSettings, visionStructure: { ...modelSettings.visionStructure, apiKey: event.target.value } })}
-          />
-          <Input
-            addonBefore="模型名"
-            value={modelSettings.visionStructure.model}
-            placeholder="例如填写你的 Doubao-Seed-2.0-pro 模型接入点名称"
-            onChange={(event) => updateModelSettings({ ...modelSettings, visionStructure: { ...modelSettings.visionStructure, model: event.target.value } })}
-          />
-          <Typography.Text type="secondary">{modelSettings.visionStructure.responsibility}</Typography.Text>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Typography.Text strong>图片生成后台</Typography.Text>
+          <Button aria-label="模型配置" icon={<Settings size={16} />} onClick={() => setSettingsOpen(true)} />
         </Space>
-        <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 12 }}>
-          <Typography.Text type="secondary">{modelSettings.visionEmbedding.label}</Typography.Text>
-          <Input
-            addonBefore="API 地址"
-            value={modelSettings.visionEmbedding.apiUrl}
-            onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, apiUrl: event.target.value } })}
-          />
-          <Input.Password
-            addonBefore="API Key"
-            value={modelSettings.visionEmbedding.apiKey}
-            placeholder="填写你的视觉向量模型 API Key"
-            onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, apiKey: event.target.value } })}
-          />
-          <Input
-            addonBefore="模型名"
-            value={modelSettings.visionEmbedding.model}
-            placeholder="例如填写你的 Doubao-embedding-vision 模型接入点名称"
-            onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, model: event.target.value } })}
-          />
-          <Typography.Text type="secondary">{modelSettings.visionEmbedding.responsibility}</Typography.Text>
-        </Space>
-      </section>
-
-      <Divider style={{ margin: 0 }} />
-
-      <section>
-        <Typography.Text strong>图片生成后台</Typography.Text>
-        <Upload.Dragger
+        <input
+          ref={fileInputRef}
+          type="file"
           accept="image/*"
-          maxCount={1}
-          fileList={fileList}
-          beforeUpload={() => false}
-          onChange={({ fileList: nextFileList }) => setFileList(nextFileList.slice(-1))}
+          hidden
+          onChange={(event) => chooseFile(event.target.files?.[0])}
+        />
+        <div
+          className="ai-image-upload-zone"
+          role="button"
+          aria-label="选择后台图片"
+          tabIndex={0}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            fileInputRef.current?.click();
+          }}
+          style={{
+            border: '1px dashed #91caff',
+            borderRadius: 8,
+            cursor: 'pointer',
+            marginTop: 12,
+            padding: 28,
+            textAlign: 'center',
+          }}
         >
+          <ImagePlus size={28} />
           <p>上传后台截图、草图或页面图片</p>
-          <p className="ant-upload-hint">系统会在浏览器内识别页面类型，自动匹配组件并放置到当前画板。</p>
-        </Upload.Dragger>
-        <Button type="primary" block style={{ marginTop: 8 }} loading={generating} disabled={fileList.length === 0} onClick={() => void generateFromUpload()}>
+          <p className="ant-upload-hint">点击选择图片，或把图片拖到这里。</p>
+          {selectedFile ? <Typography.Text type="secondary">已选择：{selectedFile.name}</Typography.Text> : null}
+        </div>
+        <Button type="primary" block style={{ marginTop: 8 }} loading={generating} disabled={!selectedFile} onClick={() => void generateFromUpload()}>
           识别图片并生成后台原型
         </Button>
         {modelStatus ? <Alert style={{ marginTop: 12 }} type={modelStatus.includes('失败') ? 'warning' : 'info'} showIcon message={modelStatus} /> : null}
         {plan ? <Alert style={{ marginTop: 12 }} type="success" showIcon message={plan.title} description={plan.summary} /> : null}
       </section>
+      <Modal title="模型配置" open={settingsOpen} onCancel={() => setSettingsOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <section>
+            <Typography.Text strong>视觉理解 / 结构生成</Typography.Text>
+            <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 12 }}>
+              <Typography.Text type="secondary">{modelSettings.visionStructure.label}</Typography.Text>
+              <Input
+                addonBefore="API 地址"
+                value={modelSettings.visionStructure.apiUrl}
+                onChange={(event) => updateModelSettings({ ...modelSettings, visionStructure: { ...modelSettings.visionStructure, apiUrl: event.target.value } })}
+              />
+              <Input.Password
+                addonBefore="API Key"
+                value={modelSettings.visionStructure.apiKey}
+                placeholder="填写你的视觉理解模型 API Key"
+                onChange={(event) => updateModelSettings({ ...modelSettings, visionStructure: { ...modelSettings.visionStructure, apiKey: event.target.value } })}
+              />
+              <Input
+                addonBefore="模型名"
+                value={modelSettings.visionStructure.model}
+                placeholder="例如填写你的 Doubao-Seed-2.0-pro 模型接入点名称"
+                onChange={(event) => updateModelSettings({ ...modelSettings, visionStructure: { ...modelSettings.visionStructure, model: event.target.value } })}
+              />
+              <Typography.Text type="secondary">{modelSettings.visionStructure.responsibility}</Typography.Text>
+            </Space>
+          </section>
+          <section>
+            <Typography.Text strong>视觉向量 / 组件匹配</Typography.Text>
+            <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 12 }}>
+              <Typography.Text type="secondary">{modelSettings.visionEmbedding.label}</Typography.Text>
+              <Input
+                addonBefore="API 地址"
+                value={modelSettings.visionEmbedding.apiUrl}
+                onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, apiUrl: event.target.value } })}
+              />
+              <Input.Password
+                addonBefore="API Key"
+                value={modelSettings.visionEmbedding.apiKey}
+                placeholder="填写你的视觉向量模型 API Key"
+                onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, apiKey: event.target.value } })}
+              />
+              <Input
+                addonBefore="模型名"
+                value={modelSettings.visionEmbedding.model}
+                placeholder="例如填写你的 Doubao-embedding-vision 模型接入点名称"
+                onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, model: event.target.value } })}
+              />
+              <Typography.Text type="secondary">{modelSettings.visionEmbedding.responsibility}</Typography.Text>
+            </Space>
+          </section>
+        </Space>
+      </Modal>
     </Space>
   );
 }

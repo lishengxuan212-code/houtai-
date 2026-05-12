@@ -50,6 +50,7 @@ function canvasFor(node: ComponentNode, defaults: Partial<NodeCanvasConfig> = {}
     ...(node.canvas?.hidden !== undefined ? { hidden: node.canvas.hidden } : {}),
     ...(node.canvas?.rotation !== undefined ? { rotation: node.canvas.rotation } : {}),
     ...(node.canvas?.parentFrameId !== undefined ? { parentFrameId: node.canvas.parentFrameId } : {}),
+    ...(node.canvas?.groupId ? { groupId: node.canvas.groupId } : {}),
   };
 }
 

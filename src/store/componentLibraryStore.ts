@@ -2,6 +2,7 @@ import type { JsonRecord } from '../domain/types';
 import type { ComponentPreset } from '../registry/types/componentPreset';
 import {
   clearComponentLibraryStorage,
+  componentLibraryStorageKey,
   loadComponentLibraryState,
   overrideRecordToProps,
   saveComponentLibraryState,
@@ -133,7 +134,13 @@ function recentId(kind: RecentLibraryItemKind, sourceId: string): string {
 }
 
 function sortRecentItems(items: RecentLibraryItem[]): RecentLibraryItem[] {
-  return [...items].sort((left, right) => right.usedAt.localeCompare(left.usedAt));
+  return [...items].sort((left, right) => {
+    if (left.favorite && right.favorite) {
+      return (left.favoriteAt ?? left.usedAt).localeCompare(right.favoriteAt ?? right.usedAt);
+    }
+    if (left.favorite !== right.favorite) return left.favorite ? -1 : 1;
+    return right.usedAt.localeCompare(left.usedAt);
+  });
 }
 
 export function recordRecentLibraryItem(input: RecordRecentLibraryItemInput): RecentLibraryItem {
@@ -150,6 +157,7 @@ export function recordRecentLibraryItem(input: RecordRecentLibraryItemInput): Re
     usedAt,
     useCount: (existing?.useCount ?? 0) + 1,
     favorite: existing?.favorite ?? false,
+    ...(existing?.favoriteAt ? { favoriteAt: existing.favoriteAt } : {}),
   };
   persist({
     ...state,
@@ -170,10 +178,17 @@ export function toggleRecentLibraryFavorite(itemId: string, favorite?: boolean):
   let updated: RecentLibraryItem | undefined;
   const recent = state.recent.map((item) => {
     if (item.id !== itemId) return item;
-    updated = { ...item, favorite: favorite ?? !item.favorite };
+    const nextFavorite = favorite ?? !item.favorite;
+    if (nextFavorite) {
+      updated = { ...item, favorite: true, favoriteAt: item.favoriteAt ?? new Date().toISOString() };
+    } else {
+      const { favoriteAt: _favoriteAt, ...rest } = item;
+      void _favoriteAt;
+      updated = { ...rest, favorite: false };
+    }
     return updated;
   });
-  persist({ ...state, recent });
+  persist({ ...state, recent: sortRecentItems(recent) });
   return updated ? structuredClone(updated) : undefined;
 }
 
@@ -184,4 +199,12 @@ export function reloadComponentLibraryState(): void {
 export function clearComponentLibraryState(): void {
   clearComponentLibraryStorage();
   state = { overrides: {}, nameOverrides: {}, canvasOverrides: {}, presets: [], recent: [] };
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== componentLibraryStorageKey) return;
+    state = loadComponentLibraryState();
+    window.dispatchEvent(new CustomEvent('component-library-state-change'));
+  });
 }

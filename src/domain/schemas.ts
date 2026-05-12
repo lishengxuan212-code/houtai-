@@ -65,6 +65,7 @@ export const NodeCanvasSchema = z.object({
   hidden: z.boolean().optional(),
   rotation: z.number().optional(),
   parentFrameId: z.string().optional(),
+  groupId: z.string().nullable().optional(),
 });
 
 export const ComponentSemanticSchema = z.object({

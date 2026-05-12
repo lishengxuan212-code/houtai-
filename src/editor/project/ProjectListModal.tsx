@@ -2,6 +2,7 @@ import { Button, Empty, Input, List, Modal, Popconfirm, Space, Typography } from
 import { useState } from 'react';
 import { listProjects } from '../../project/ProjectManager';
 import { useProjectStore } from '../../store/projectStore';
+import { WORKBENCH_MODAL_WIDTH } from '../workbench/modalConstants';
 
 export function ProjectListModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -16,7 +17,7 @@ export function ProjectListModal({ open, onClose }: { open: boolean; onClose: ()
   void refreshKey;
 
   return (
-    <Modal title="项目列表" open={open} onCancel={onClose} footer={null} width={680}>
+    <Modal title="项目列表" open={open} onCancel={onClose} footer={null} width={WORKBENCH_MODAL_WIDTH}>
       {projects.length === 0 ? <Empty description="暂无已保存项目" /> : null}
       <List
         dataSource={projects}

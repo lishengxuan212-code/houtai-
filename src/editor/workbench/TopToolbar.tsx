@@ -8,6 +8,7 @@ import { LogicBoardPanel } from '../LogicBoardPanel';
 import { AiPanel } from '../AiPanel';
 import { ProjectToolbarActions } from '../project/ProjectToolbarActions';
 import { ComponentSystemPanel } from '../components/ComponentSystemPanel';
+import { WORKBENCH_MODAL_WIDTH } from './modalConstants';
 
 const severityColor = {
   error: 'red',
@@ -51,7 +52,7 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
           {mode === 'preview' ? '返回编辑' : '预览'}
         </Button>
       </Space>
-      <Modal title="当前页面 AI 检查" open={aiCheckOpen} onCancel={() => setAiCheckOpen(false)} footer={null} width={760}>
+      <Modal title="当前页面 AI 检查" open={aiCheckOpen} onCancel={() => setAiCheckOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Typography.Text type="secondary">检查页面：{currentPage?.name ?? currentPageId}</Typography.Text>
           {aiSuggestions.length === 0 ? (
@@ -77,16 +78,16 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
           )}
         </Space>
       </Modal>
-      <Modal title="AI 生成页面" open={aiGenerateOpen} onCancel={() => setAiGenerateOpen(false)} footer={null} width={520}>
+      <Modal title="AI 生成页面" open={aiGenerateOpen} onCancel={() => setAiGenerateOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <AiPanel />
       </Modal>
-      <Modal title="组件系统" open={componentSystemOpen} onCancel={() => setComponentSystemOpen(false)} footer={null} width={980}>
+      <Modal title="组件系统" open={componentSystemOpen} onCancel={() => setComponentSystemOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <ComponentSystemPanel />
       </Modal>
-      <Modal title="逻辑看板" open={logicBoardOpen} onCancel={() => setLogicBoardOpen(false)} footer={null} width={760}>
+      <Modal title="逻辑看板" open={logicBoardOpen} onCancel={() => setLogicBoardOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <LogicBoardPanel />
       </Modal>
-      <Modal title="导出 PRD" open={exportOpen} onCancel={() => setExportOpen(false)} footer={null} width={820}>
+      <Modal title="导出 PRD" open={exportOpen} onCancel={() => setExportOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Button onClick={() => void navigator.clipboard?.writeText(markdown)}>复制 Markdown</Button>
           <Input.TextArea rows={22} value={markdown} readOnly />

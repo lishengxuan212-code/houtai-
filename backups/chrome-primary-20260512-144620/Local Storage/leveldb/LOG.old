@@ -1,0 +1,6 @@
+2026/04/15-10:39:58.425 af70 Reusing MANIFEST C:\Users\Admin\AppData\Local\Google\Chrome\User Data\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/15-10:39:58.436 af70 Recovering log #3
+2026/04/15-10:39:58.446 af70 Reusing old log C:\Users\Admin\AppData\Local\Google\Chrome\User Data\Default\Local Storage\leveldb/000003.log 
+2026/04/15-10:40:58.458 186e8 Level-0 table #5: started
+2026/04/15-10:40:58.474 186e8 Level-0 table #5: 966133 bytes OK
+2026/04/15-10:40:58.477 186e8 Delete type=0 #3

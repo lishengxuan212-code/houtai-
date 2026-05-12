@@ -14,7 +14,7 @@ export type AiModelSettings = {
   visionEmbedding: AiModelConfig;
 };
 
-const STORAGE_KEY = 'admin-prototype-studio.ai-model-settings.v1';
+export const AI_MODEL_SETTINGS_STORAGE_KEY = 'admin-prototype-studio.ai-model-settings.v1';
 
 export const defaultAiModelSettings: AiModelSettings = {
   visionStructure: {
@@ -53,7 +53,7 @@ function mergeConfig(role: AiModelRole, value: unknown): AiModelConfig {
 export function loadAiModelSettings(): AiModelSettings {
   if (typeof localStorage === 'undefined') return defaultAiModelSettings;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(AI_MODEL_SETTINGS_STORAGE_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : undefined;
     if (!isRecord(parsed)) return defaultAiModelSettings;
     return {
@@ -67,7 +67,7 @@ export function loadAiModelSettings(): AiModelSettings {
 
 export function saveAiModelSettings(settings: AiModelSettings) {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  localStorage.setItem(AI_MODEL_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }
 
 export function isModelConfigured(config: AiModelConfig) {

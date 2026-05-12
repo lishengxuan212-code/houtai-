@@ -3,12 +3,12 @@ import type { UserTemplate } from '../../templates/userTemplateTypes';
 
 const typeLabels: Record<UserTemplate['type'], string> = {
   page: '页面模板',
-  pageFrame: '页面画板',
-  canvasBoard: '画布画板',
-  block: '区块模板',
-  group: '组合模板',
+  pageFrame: '页面模板',
+  canvasBoard: '页面模板',
+  block: '组件模板',
+  group: '组件模板',
   component: '组件模板',
-  componentPreset: '组件预设',
+  componentPreset: '组件模板',
 };
 
 export function TemplateCard({
@@ -18,6 +18,7 @@ export function TemplateCard({
   onDelete,
   onDuplicate,
   onUpdate,
+  onPreview,
 }: {
   template: UserTemplate;
   onUse: (template: UserTemplate) => void;
@@ -25,6 +26,7 @@ export function TemplateCard({
   onDelete: (template: UserTemplate) => void;
   onDuplicate: (template: UserTemplate) => void;
   onUpdate: (template: UserTemplate) => void;
+  onPreview: (template: UserTemplate) => void;
 }) {
   return (
     <div className="template-card">
@@ -36,6 +38,7 @@ export function TemplateCard({
       </div>
       <Button size="small" block onClick={() => onUse(template)}>使用模板</Button>
       <Space size={6} wrap>
+        <Button size="small" type="link" onClick={() => onPreview(template)}>预览</Button>
         <Button size="small" type="link" onClick={() => onRename(template)}>重命名</Button>
         <Button size="small" type="link" onClick={() => onUpdate(template)}>更新</Button>
         <Button size="small" type="link" onClick={() => onDuplicate(template)}>复制</Button>

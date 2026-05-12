@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createPageFromTemplate,
   createTemplateFromSelection,
+  createTemplateFromSelectedNodes,
   deleteUserTemplate,
   duplicateUserTemplate,
   insertTemplateIntoPage,
@@ -72,6 +73,26 @@ describe('template library operations', () => {
     const next = insertTemplateIntoPage(initialProject, page.id, page.rootNodeId, template);
     expect(Object.keys(next.pages[0]!.nodes).length).toBeGreaterThan(Object.keys(page.nodes).length);
     expect(Object.keys(initialProject.pages[0]!.nodes)).toHaveLength(Object.keys(page.nodes).length);
+  });
+
+  it('saves only the selected nodes when creating a component template from canvas selection', () => {
+    const project = withTemplateFixture();
+    const page = project.pages[0]!;
+    const template = createTemplateFromSelectedNodes(project, page.id, ['existing_top', 'table_internal'], {
+      name: 'Selected Components',
+      type: 'component',
+      category: '日常',
+      includeProps: true,
+      includeContent: true,
+      includeData: false,
+      includeInternalInteractions: false,
+    });
+
+    expect(template.type).toBe('component');
+    expect(Object.keys(template.content.nodes).sort()).toEqual(['existing_top', 'table_internal', template.content.rootNodeId].sort());
+    expect(template.content.nodes[page.rootNodeId]).toBeUndefined();
+    expect(template.content.nodes.section_internal).toBeUndefined();
+    expect(template.content.nodes.modal_internal).toBeUndefined();
   });
 
   it('commits template insertion into undo history', () => {

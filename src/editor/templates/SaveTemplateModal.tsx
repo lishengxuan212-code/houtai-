@@ -2,13 +2,14 @@ import { Button, Checkbox, Form, Input, Modal, Radio, Select } from 'antd';
 import { useEffect } from 'react';
 import { recordRecentLibraryItem } from '../../store/componentLibraryStore';
 import { useProjectStore } from '../../store/projectStore';
-import { createTemplateFromSelection, saveUserTemplate } from '../../templates/templateOperations';
+import { createTemplateFromSelectedNodes, saveUserTemplate } from '../../templates/templateOperations';
 import type { UserTemplate, UserTemplateType } from '../../templates/userTemplateTypes';
 
 type TemplateFormValues = {
   name: string;
   type: UserTemplateType;
   category: string;
+  customCategory?: string;
   description?: string;
   includeProps: boolean;
   includeContent: boolean;
@@ -18,10 +19,11 @@ type TemplateFormValues = {
 };
 
 function recentKindForTemplate(type: UserTemplateType) {
-  if (type === 'page' || type === 'pageFrame' || type === 'canvasBoard') return 'pageTemplate' as const;
-  if (type === 'group') return 'groupTemplate' as const;
-  if (type === 'componentPreset') return 'componentPreset' as const;
-  return 'componentTemplate' as const;
+  return type === 'page' ? 'pageTemplate' as const : 'componentTemplate' as const;
+}
+
+function editableTemplateType(type: UserTemplateType | undefined): UserTemplateType {
+  return type === 'page' ? 'page' : 'component';
 }
 
 export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: boolean; onClose: () => void; templateToUpdate?: UserTemplate }) {
@@ -29,14 +31,19 @@ export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: b
   const currentPageId = useProjectStore((state) => state.currentPageId);
   const currentFrameId = useProjectStore((state) => state.currentFrameId);
   const selectedNodeId = useProjectStore((state) => state.selectedNodeId);
+  const selectedNodeIds = useProjectStore((state) => state.selectedNodeIds);
   const [form] = Form.useForm<TemplateFormValues>();
+  const category = Form.useWatch('category', form);
 
   useEffect(() => {
     if (!open) return;
+    const sourceCategory = templateToUpdate?.category;
+    const knownCategory = sourceCategory && ['客服', '日常', '财务', '自定义'].includes(sourceCategory);
     form.setFieldsValue({
       name: templateToUpdate?.name ?? '我的模板',
-      type: templateToUpdate?.type ?? 'component',
-      category: templateToUpdate?.category ?? '常用',
+      type: editableTemplateType(templateToUpdate?.type),
+      category: knownCategory ? sourceCategory : sourceCategory ? '自定义' : '日常',
+      ...(sourceCategory && !knownCategory ? { customCategory: sourceCategory } : {}),
       includeProps: templateToUpdate?.saveOptions?.includeProps ?? true,
       includeContent: templateToUpdate?.saveOptions?.includeContent ?? true,
       includeData: templateToUpdate?.saveOptions?.includeData ?? true,
@@ -53,9 +60,10 @@ export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: b
         layout="vertical"
         onFinish={(values) => {
           const page = project.pages.find((item) => item.id === currentPageId);
-          const rootNodeId = values.type === 'page' ? page?.rootNodeId : values.type === 'pageFrame' || values.type === 'canvasBoard' ? page?.rootNodeId : selectedNodeId;
-          if (!page || !rootNodeId) return;
-          const template = createTemplateFromSelection(project, currentPageId, rootNodeId, { ...values, ...(currentFrameId ? { frameId: currentFrameId } : {}) });
+          const selectedIds = selectedNodeIds.length ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : [];
+          if (!page || (values.type !== 'page' && selectedIds.filter((nodeId) => nodeId !== page.rootNodeId).length === 0)) return;
+          const resolvedCategory = values.category === '自定义' ? values.customCategory?.trim() || '自定义' : values.category;
+          const template = createTemplateFromSelectedNodes(project, currentPageId, selectedIds, { ...values, category: resolvedCategory, ...(currentFrameId ? { frameId: currentFrameId } : {}) });
           saveUserTemplate(
             templateToUpdate
               ? {
@@ -84,17 +92,18 @@ export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: b
           <Radio.Group
             options={[
               { label: '页面模板', value: 'page' },
-              { label: '页面画板', value: 'pageFrame' },
-              { label: '区块模板', value: 'block' },
-              { label: '组合模板', value: 'group' },
               { label: '组件模板', value: 'component' },
-              { label: '组件预设', value: 'componentPreset' },
             ]}
           />
         </Form.Item>
         <Form.Item name="category" label="分类">
-          <Select options={['常用', '订单', '表单', '审批', '数据看板', '自定义'].map((value) => ({ value, label: value }))} />
+          <Select options={['客服', '日常', '财务', '自定义'].map((value) => ({ value, label: value }))} />
         </Form.Item>
+        {category === '自定义' ? (
+          <Form.Item name="customCategory" label="自定义分类" rules={[{ required: true, message: '请输入自定义分类' }]}>
+            <Input placeholder="请输入自定义分类" />
+          </Form.Item>
+        ) : null}
         <Form.Item name="description" label="说明">
           <Input.TextArea rows={3} />
         </Form.Item>

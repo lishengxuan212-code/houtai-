@@ -1,6 +1,7 @@
 import { Button, Form, Input, InputNumber, Modal, Radio, Segmented } from 'antd';
 import type { BusinessType } from '../../domain/types';
 import { useProjectStore } from '../../store/projectStore';
+import { WORKBENCH_MODAL_WIDTH } from '../workbench/modalConstants';
 
 const businessTypes: { label: string; value: BusinessType }[] = [
   { label: '空白后台', value: 'blank' },
@@ -24,7 +25,7 @@ export function NewProjectModal({ open, onClose }: { open: boolean; onClose: () 
   const createProject = useProjectStore((state) => state.createProject);
   const [form] = Form.useForm<NewProjectForm>();
   return (
-    <Modal title="新建项目" open={open} onCancel={onClose} footer={null} width={620}>
+    <Modal title="新建项目" open={open} onCancel={onClose} footer={null} width={WORKBENCH_MODAL_WIDTH}>
       <Form
         form={form}
         layout="vertical"

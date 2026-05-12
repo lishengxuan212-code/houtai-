@@ -56,12 +56,12 @@ function formNode(type = 'Form'): ComponentNode {
   };
 }
 
-describe('heavy component design renderers', () => {
-  it('uses a lightweight design renderer for Table in edit mode', () => {
+describe('heavy component renderers', () => {
+  it('uses the Ant Design table renderer in edit mode', () => {
     render(<RenderNode node={tableNode()} context={editContext} />);
 
-    expect(screen.getByTestId('design-renderer-node_Table')).toBeInTheDocument();
-    expect(document.querySelector('.ant-table')).toBeFalsy();
+    expect(document.querySelector('.ant-table')).toBeTruthy();
+    expect(screen.getByText('Order A')).toBeInTheDocument();
   });
 
   it('uses runtime Table rendering in preview mode', () => {
@@ -70,7 +70,7 @@ describe('heavy component design renderers', () => {
     expect(document.querySelector('.ant-table')).toBeTruthy();
   });
 
-  it('uses lightweight design renderers for ProTable, EditableProTable, and ProForm in edit mode', () => {
+  it('uses preview-equivalent renderers for ProTable, EditableProTable, and ProForm in edit mode', () => {
     render(
       <>
         <RenderNode node={tableNode('pro.ProTable')} context={editContext} />
@@ -79,15 +79,15 @@ describe('heavy component design renderers', () => {
       </>,
     );
 
-    expect(screen.getByTestId('design-renderer-node_pro.ProTable')).toBeInTheDocument();
-    expect(screen.getByTestId('design-renderer-node_pro.EditableProTable')).toBeInTheDocument();
-    expect(screen.getByTestId('design-renderer-node_pro.ProForm')).toBeInTheDocument();
+    expect(document.querySelectorAll('.ant-table')).toHaveLength(2);
+    expect(document.querySelector('.ant-form')).toBeTruthy();
+    expect(screen.getAllByText('Order A')).toHaveLength(2);
   });
 
-  it('uses a lightweight design renderer for Form in edit mode', () => {
+  it('uses the Ant Design form renderer in edit mode', () => {
     render(<RenderNode node={formNode()} context={editContext} />);
 
-    expect(screen.getByTestId('design-renderer-node_Form')).toBeInTheDocument();
-    expect(document.querySelector('.ant-form')).toBeFalsy();
+    expect(document.querySelector('.ant-form')).toBeTruthy();
+    expect(screen.getByText('Name')).toBeInTheDocument();
   });
 });

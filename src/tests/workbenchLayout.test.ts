@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
+import { ResizablePanels } from '../editor/workbench/ResizablePanels';
 import { WorkbenchShell } from '../editor/workbench/WorkbenchShell';
 
 describe('WorkbenchShell', () => {
@@ -20,5 +21,17 @@ describe('WorkbenchShell', () => {
     expect(html).toContain('数据');
     expect(html).toContain('AI 生成');
     expect(html).toContain('导出');
+  });
+
+  it('uses 80 percent chrome panel proportions while leaving the center fluid', () => {
+    const html = renderToStaticMarkup(
+      createElement(ResizablePanels, {
+        left: createElement('div', null, 'left'),
+        center: createElement('div', null, 'center'),
+        right: createElement('div', null, 'right'),
+      }),
+    );
+
+    expect(html).toContain('grid-template-columns:272px 5px minmax(0, 1fr) 5px 304px');
   });
 });

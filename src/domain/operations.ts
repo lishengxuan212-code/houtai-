@@ -223,6 +223,7 @@ export function applyOperation(project: Project, operation: Operation): Project 
       const hidden = operation.canvas.hidden ?? current.hidden;
       const rotation = operation.canvas.rotation ?? current.rotation;
       const parentFrameId = operation.canvas.parentFrameId ?? current.parentFrameId;
+      const groupId = Object.prototype.hasOwnProperty.call(operation.canvas, 'groupId') ? operation.canvas.groupId : current.groupId;
       node.canvas = {
         x: operation.canvas.x ?? current.x,
         y: operation.canvas.y ?? current.y,
@@ -233,6 +234,7 @@ export function applyOperation(project: Project, operation: Operation): Project 
         ...(hidden !== undefined ? { hidden } : {}),
         ...(rotation !== undefined ? { rotation } : {}),
         ...(parentFrameId !== undefined ? { parentFrameId } : {}),
+        ...(groupId ? { groupId } : {}),
       };
       if ((deltaX !== 0 || deltaY !== 0) && node.children?.length) {
         const descendantIds = new Set<string>();

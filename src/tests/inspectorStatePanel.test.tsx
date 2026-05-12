@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '../domain/types';
 import { PropertyPanel } from '../editor/PropertyPanel';
 import { PageOutlinePanel } from '../editor/workbench/PageOutlinePanel';
+import { TopPropertyBar } from '../editor/workbench/TopPropertyBar';
+import { RightInspectorPanel } from '../editor/workbench/RightInspectorPanel';
 import { exportPlainPrd } from '../export/plainPrd';
 import { RuntimeProvider } from '../runtime/RuntimeProvider';
 import { RuntimeRenderer } from '../runtime/RuntimeRenderer';
@@ -115,5 +117,35 @@ describe('inspector state panel', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Create order' })).not.toBeInTheDocument();
+  });
+
+  it('updates common component properties from the top property bar', () => {
+    render(<TopPropertyBar />);
+
+    fireEvent.change(screen.getByLabelText('top-prop-component-name'), { target: { value: 'Top renamed action' } });
+    fireEvent.change(screen.getByLabelText('top-prop-text'), { target: { value: '提交订单' } });
+    changeNumber('top-prop-width', '260');
+    changeNumber('top-prop-height', '72');
+    fireEvent.click(screen.getByLabelText('top-prop-bold'));
+    fireEvent.click(screen.getByLabelText('top-prop-align-center'));
+
+    const node = useProjectStore.getState().project.pages[0]!.nodes.button_one!;
+    expect(node.name).toBe('Top renamed action');
+    expect(node.semantic?.moduleName).toBe('Top renamed action');
+    expect(node.props).toMatchObject({ text: '提交订单', fontWeight: 700, textAlign: 'center' });
+    expect(node.canvas).toMatchObject({ width: 260, height: 72 });
+  });
+
+  it('keeps component-specific editing in the right property tab', () => {
+    render(<RightInspectorPanel />);
+
+    expect(screen.getByRole('tab', { name: '属性' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('文案')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('inspector-component-name')).not.toBeInTheDocument();
+    expect(screen.queryByText('文字')).not.toBeInTheDocument();
+    expect(screen.queryByText('填充')).not.toBeInTheDocument();
+    expect(screen.queryByText('阴影')).not.toBeInTheDocument();
+    expect(screen.queryByText('内边距')).not.toBeInTheDocument();
+    expect(screen.queryByText('尺寸')).not.toBeInTheDocument();
   });
 });
