@@ -1,6 +1,10 @@
 import type { CSSProperties } from 'react';
 import { ensureNodeCanvas, filterNodesForFrame } from '../domain/canvas';
-import type { ComponentNode, NodeCanvasConfig, Page, PageFrame } from '../domain/types';
+import type { ComponentNode, JsonValue, NodeCanvasConfig, Page, PageFrame } from '../domain/types';
+
+function numberProp(value: JsonValue | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
 
 export function selectPreviewFrame(page: Page, activeFrameId?: string): PageFrame | undefined {
   if (!page.frames?.length) return undefined;
@@ -13,6 +17,7 @@ export function getPreviewFrameNodes(page: Page, frameId: string): ComponentNode
 
 export function getCanvasNodeStyle(node: ComponentNode): CSSProperties {
   const canvas = ensureNodeCanvas(node).canvas as NodeCanvasConfig;
+  const radius = numberProp(node.props.borderRadius) ?? numberProp(node.props.radius);
   return {
     position: 'absolute',
     left: canvas.x,
@@ -22,6 +27,7 @@ export function getCanvasNodeStyle(node: ComponentNode): CSSProperties {
     zIndex: canvas.zIndex,
     overflow: 'hidden',
     boxSizing: 'border-box',
+    ...(radius !== undefined ? { borderRadius: radius } : {}),
   };
 }
 

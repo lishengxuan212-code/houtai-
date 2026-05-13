@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { getNextFrameZIndex, sortNodesByZIndex } from '../domain/canvas';
 import { visibleCanvasNodeIds } from '../domain/canvasViewport';
 import type { ComponentNode, NodeCanvasConfig, Page, PageFrame } from '../domain/types';
+import { imageInputFromClipboardData, imageInputFromDataTransfer, type ImageInput } from '../ai/imageInput';
 import { componentLabel } from '../registry/componentLabels';
 import { RenderNode } from '../registry/renderers';
 import type { RendererContext } from '../registry/renderers/rendererTypes';
 import { getComponentDefaultCanvas, saveComponentDefaultProps } from '../store/componentLibraryStore';
 import { useCanvasInteractionStore, useCanvasViewportStore } from '../store/editorStores';
 import { useProjectStore } from '../store/projectStore';
+import { clampCanvasCornerRadius, dragCanvasCornerRadius, numberProp as radiusNumberProp } from './canvasRadius';
+import { fitCanvasImageSize, imageInputToCanvasNode } from './canvasImagePlacement';
+import { resizeCanvasRect } from './canvasResize';
 import { InlineTextEditor, patchArrayItemLabel, patchScalarProp, patchTableCell } from './inlineEdit';
 import { incrementMetric, measureMetric } from './performance/performanceMetrics';
 import { SaveTemplateModal } from './templates/SaveTemplateModal';
@@ -50,6 +54,7 @@ const DEFAULT_NODE_SIZES: Record<string, { width: number; height: number }> = {
   Section: { width: 760, height: 180 },
   Modal: { width: 520, height: 280 },
   Drawer: { width: 420, height: 360 },
+  ImageWidget: { width: 320, height: 180 },
 };
 
 function defaultFrameForPage(page: Page): PageFrame {
@@ -107,6 +112,16 @@ function groupedNodeIds(page: Page, node: ComponentNode) {
 
 function isEditableShortcutTarget(target: EventTarget | null) {
   return target instanceof HTMLElement && Boolean(target.closest(EDITABLE_SHORTCUT_SELECTOR));
+}
+
+function hasImageTransferPayload(dataTransfer: DataTransfer) {
+  const types = Array.from(dataTransfer.types);
+  const files = Array.from(dataTransfer.files ?? []);
+  return (
+    files.some((file) => file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.svg')) ||
+    types.includes('text/html') ||
+    types.includes('text/plain')
+  );
 }
 
 function isTextEditingShortcutTarget(target: EventTarget | null) {
@@ -252,14 +267,19 @@ function CanvasNodeFrame({
       : undefined;
   const resizePreviewCanvas = activeInteraction?.kind === 'resize' && activeInteraction.nodeId === node.id ? activeInteraction.previewCanvas : undefined;
   const visualCanvas = dragPreviewCanvas ?? resizePreviewCanvas;
+  const cornerRadius = clampCanvasCornerRadius(radiusNumberProp(node.props.radius ?? node.props.borderRadius, 0), canvas);
 
   const persistCanvas = (patch: Partial<NodeCanvasConfig>) => {
     apply({ type: 'updateNodeCanvas', pageId: page.id, nodeId: node.id, canvas: { ...canvas, ...patch, parentFrameId: activeFrameId } });
   };
 
+  const persistRadius = (radius: number) => {
+    apply({ type: 'updateNodeProps', pageId: page.id, nodeId: node.id, props: { radius, borderRadius: radius } });
+  };
+
   const startDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (spacePanActive) return;
-    if (event.shiftKey) return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey) return;
     if (event.button !== 0 || locked || (event.target as HTMLElement).closest('.canvas-node-toolbar, .resize-handle, .inline-edit-text, .inline-edit-input')) return;
     event.preventDefault();
     event.stopPropagation();
@@ -340,25 +360,15 @@ function CanvasNodeFrame({
     const onMove = (moveEvent: globalThis.MouseEvent) => {
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
-      const next: Partial<NodeCanvasConfig> = {};
-
-      if (handle.includes('w')) {
-        const width = Math.max(MIN_NODE_WIDTH, startCanvas.width - deltaX);
-        next.width = Math.round(width);
-        next.x = Math.round(startCanvas.x + startCanvas.width - width);
-      } else if (handle.includes('e')) {
-        next.width = Math.max(MIN_NODE_WIDTH, Math.round(startCanvas.width + deltaX));
-      }
-
-      if (handle.includes('n')) {
-        const height = Math.max(MIN_NODE_HEIGHT, startCanvas.height - deltaY);
-        next.height = Math.round(height);
-        next.y = Math.round(startCanvas.y + startCanvas.height - height);
-      } else if (handle.includes('s')) {
-        next.height = Math.max(MIN_NODE_HEIGHT, Math.round(startCanvas.height + deltaY));
-      }
-
-      latestCanvas = { ...startCanvas, ...next };
+      latestCanvas = resizeCanvasRect({
+        startCanvas,
+        handle,
+        deltaX,
+        deltaY,
+        preserveAspectRatio: node.type === 'ImageWidget',
+        minWidth: MIN_NODE_WIDTH,
+        minHeight: MIN_NODE_HEIGHT,
+      });
       if (frameId !== undefined) return;
       frameId = window.requestAnimationFrame(() => {
         frameId = undefined;
@@ -382,6 +392,35 @@ function CanvasNodeFrame({
     window.addEventListener('mouseup', onUp, { once: true });
   };
 
+  const startRadiusDrag = (event: ReactMouseEvent<HTMLSpanElement>) => {
+    if (spacePanActive || locked) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startRadius = cornerRadius;
+    let latestRadius = startRadius;
+
+    const onMove = (moveEvent: globalThis.MouseEvent) => {
+      latestRadius = dragCanvasCornerRadius({
+        startRadius,
+        deltaX: moveEvent.clientX - startX,
+        deltaY: moveEvent.clientY - startY,
+        width: canvas.width,
+        height: canvas.height,
+      });
+      persistRadius(latestRadius);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      persistRadius(latestRadius);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
+  };
+
   const style: CSSProperties = {
     position: 'absolute',
     left: canvas.x,
@@ -395,6 +434,9 @@ function CanvasNodeFrame({
         }
       : {}),
   };
+  const rendererStyle: CSSProperties = {
+    borderRadius: cornerRadius,
+  };
 
   return (
     <div
@@ -405,7 +447,7 @@ function CanvasNodeFrame({
       style={style}
       onClick={(event) => {
         event.stopPropagation();
-        if (event.shiftKey) {
+        if (event.shiftKey || event.ctrlKey || event.metaKey) {
           const relatedNodeIds = groupedNodeIds(page, node);
           const next = selectedNodeIds.includes(node.id)
             ? selectedNodeIds.filter((selectedId) => !relatedNodeIds.includes(selectedId))
@@ -459,7 +501,7 @@ function CanvasNodeFrame({
           </Space>
         </div>
       ) : null}
-      <div className="canvas-node-renderer">
+      <div className="canvas-node-renderer" style={rendererStyle}>
         <NestedRenderNode page={page} node={node} activeFrameId={activeFrameId} context={context} />
       </div>
       {selected && !locked
@@ -467,6 +509,14 @@ function CanvasNodeFrame({
             <span aria-label={`resize-${handle}`} className={`resize-handle ${handle}`} key={handle} onMouseDown={startResize(handle)} />
           ))
         : null}
+      {selected && !locked ? (
+        <span
+          aria-label="corner-radius-handle"
+          className="corner-radius-handle"
+          style={{ left: Math.max(0, cornerRadius - 5), top: -5 }}
+          onMouseDown={startRadiusDrag}
+        />
+      ) : null}
     </div>
   );
 }
@@ -576,6 +626,26 @@ export function AssemblyCanvas() {
     }
   }, [apply, frameEntries, page, pageFrame]);
 
+  const placeImageInput = useCallback(async (input: ImageInput, point?: { x: number; y: number }) => {
+    if (!page || !pageFrame) return;
+    const defaultSize = fitCanvasImageSize();
+    const nextPoint = point ?? {
+      x: Math.max(0, Math.round(viewport.x + Math.min(48, Math.max(0, viewport.width - defaultSize.width) / 2))),
+      y: Math.max(0, Math.round(viewport.y + Math.min(48, Math.max(0, viewport.height - defaultSize.height) / 2))),
+    };
+    const node = await imageInputToCanvasNode({
+      input,
+      canvas: {
+        x: Math.min(nextPoint.x, Math.max(0, pageFrame.width - MIN_NODE_WIDTH)),
+        y: Math.min(nextPoint.y, Math.max(0, pageFrame.height - MIN_NODE_HEIGHT)),
+        zIndex: getNextFrameZIndex(page, pageFrame.id),
+        parentFrameId: pageFrame.id,
+      },
+    });
+    apply({ type: 'addNode', pageId: page.id, parentNodeId: page.rootNodeId, node });
+    selectNodes([node.id]);
+  }, [apply, page, pageFrame, selectNodes, viewport]);
+
   const updateViewportBox = useCallback((element: HTMLElement) => {
     setViewportBox(readScrollBox(element));
   }, []);
@@ -623,8 +693,6 @@ export function AssemblyCanvas() {
         return;
       }
       if (event.key.toLowerCase() === 'v') {
-        event.preventDefault();
-        pasteClipboard();
         return;
       }
       if (event.key.toLowerCase() === 'z') {
@@ -676,6 +744,24 @@ export function AssemblyCanvas() {
     undo,
     ungroupSelectedNode,
   ]);
+
+  useEffect(() => {
+    const handlePaste = (event: globalThis.ClipboardEvent) => {
+      if (isEditableShortcutTarget(event.target) || !event.clipboardData) return;
+      if (!page || !pageFrame) return;
+      event.preventDefault();
+      const clipboardData = event.clipboardData;
+      void imageInputFromClipboardData(clipboardData).then((input) => {
+        if (input) {
+          void placeImageInput(input);
+          return;
+        }
+        pasteClipboard();
+      });
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [page, pageFrame, pasteClipboard, placeImageInput]);
 
   if (!page || !pageFrame) return null;
 
@@ -870,6 +956,33 @@ export function AssemblyCanvas() {
     closeContextMenu();
   }
 
+  async function handleFrameDrop(event: DragEvent<HTMLDivElement>) {
+    if (!page || !pageFrame) return;
+    const dataTransfer = event.dataTransfer;
+    const imagePoint = dropPointInFrame(event);
+    if (hasImageTransferPayload(dataTransfer)) {
+      event.preventDefault();
+      event.stopPropagation();
+      const input = await imageInputFromDataTransfer(dataTransfer);
+      if (input) {
+        await placeImageInput(input, imagePoint);
+        return;
+      }
+    }
+
+    const type = dataTransfer.getData('application/x-admin-component');
+    if (!type) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const size = getComponentDefaultCanvas(type) ?? DEFAULT_NODE_SIZES[type] ?? { width: 220, height: 96 };
+    addComponentToParent(type, page.rootNodeId, {
+      ...imagePoint,
+      ...size,
+      zIndex: getNextFrameZIndex(page, pageFrame.id),
+      parentFrameId: pageFrame.id,
+    });
+  }
+
   return (
     <section
       ref={scrollRef}
@@ -884,7 +997,7 @@ export function AssemblyCanvas() {
         updateViewportBox(event.currentTarget);
       }}
       onDragOver={(event) => {
-        if (event.dataTransfer.types.includes('application/x-admin-component')) event.preventDefault();
+        if (event.dataTransfer.types.includes('application/x-admin-component') || hasImageTransferPayload(event.dataTransfer)) event.preventDefault();
       }}
     >
       <div className="canvas-zoom-indicator">{Math.round(zoom * 100)}%</div>
@@ -919,22 +1032,9 @@ export function AssemblyCanvas() {
           }}
           onMouseDown={startBoxSelect}
           onDragOver={(event) => {
-            if (event.dataTransfer.types.includes('application/x-admin-component')) event.preventDefault();
+            if (event.dataTransfer.types.includes('application/x-admin-component') || hasImageTransferPayload(event.dataTransfer)) event.preventDefault();
           }}
-          onDrop={(event) => {
-            const type = event.dataTransfer.getData('application/x-admin-component');
-            if (!type) return;
-            event.preventDefault();
-            event.stopPropagation();
-            const point = dropPointInFrame(event);
-            const size = getComponentDefaultCanvas(type) ?? DEFAULT_NODE_SIZES[type] ?? { width: 220, height: 96 };
-            addComponentToParent(type, page.rootNodeId, {
-              ...point,
-              ...size,
-              zIndex: getNextFrameZIndex(page, pageFrame.id),
-              parentFrameId: pageFrame.id,
-            });
-          }}
+          onDrop={(event) => void handleFrameDrop(event)}
         >
           <div className="canvas-page-frame-label">{pageFrame.name}</div>
           {selectedNodeId === page.rootNodeId

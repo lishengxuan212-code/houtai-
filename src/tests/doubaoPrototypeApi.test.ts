@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { generatePrototypePlanWithTextModel } from '../ai/doubaoPrototypeApi';
+import { generatePrototypePlanResultWithTextModel, generatePrototypePlanWithTextModel } from '../ai/doubaoPrototypeApi';
 import type { ImagePrototypeAnalysis } from '../ai/imagePrototype';
 import type { AiModelConfig } from '../ai/modelSettings';
 
@@ -28,11 +28,87 @@ function mockChatResponse(content: unknown) {
   } as Response);
 }
 
+function mockResponseFormatFallback(content: unknown) {
+  vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ error: { message: 'response_format is not supported by this model' } }),
+    } as Response)
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content } }] }),
+    } as Response);
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('doubaoPrototypeApi plan normalization', () => {
+  it('requests a JSON object response from compatible chat APIs', async () => {
+    mockChatResponse({ nodes: [{ type: 'button', name: 'Search', text: 'Search' }] });
+
+    await generatePrototypePlanWithTextModel(config, analysis);
+
+    const body = JSON.parse((vi.mocked(globalThis.fetch).mock.calls[0]?.[1] as RequestInit).body as string) as Record<string, unknown>;
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'system',
+          content: expect.stringContaining('Only return one valid JSON object'),
+        }),
+      ]),
+    );
+  });
+
+  it('returns a visible failure reason when the model response has no JSON object', async () => {
+    mockChatResponse('I cannot inspect this image.');
+
+    const result = await generatePrototypePlanResultWithTextModel(config, analysis);
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: '模型返回内容中没有可解析的 JSON 对象。',
+      rawText: 'I cannot inspect this image.',
+    });
+  });
+
+  it('returns a visible failure reason when JSON parsing fails', async () => {
+    mockChatResponse('{"nodes": [}');
+
+    const result = await generatePrototypePlanResultWithTextModel(config, analysis);
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: '模型返回的 JSON 解析失败。',
+      rawText: '{"nodes": [}',
+    });
+  });
+
+  it('returns a visible failure reason when normalized JSON has no usable components', async () => {
+    mockChatResponse({ nodes: [{ type: 'page', name: 'Page' }] });
+
+    const result = await generatePrototypePlanResultWithTextModel(config, analysis);
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: '模型返回了 JSON，但没有识别到可插入的组件。',
+    });
+  });
+
+  it('retries without response_format when a compatible API rejects the parameter', async () => {
+    mockResponseFormatFallback({ nodes: [{ type: 'button', name: 'Search', text: 'Search' }] });
+
+    const plan = await generatePrototypePlanWithTextModel(config, analysis);
+
+    expect(plan?.nodes[0]).toMatchObject({ type: 'Button', name: 'Search' });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    const fallbackBody = JSON.parse((vi.mocked(globalThis.fetch).mock.calls[1]?.[1] as RequestInit).body as string) as Record<string, unknown>;
+    expect(fallbackBody.response_format).toBeUndefined();
+  });
+
   it('normalizes page JSON trees into renderable component nodes', async () => {
     mockChatResponse({
       type: 'page',

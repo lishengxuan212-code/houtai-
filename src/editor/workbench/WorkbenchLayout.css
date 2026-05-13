@@ -248,7 +248,7 @@
 }
 
 .top-prop-radius-control {
-  display: inline-flex;
+  display: none;
   align-items: center;
   gap: 2px;
   height: 22px;

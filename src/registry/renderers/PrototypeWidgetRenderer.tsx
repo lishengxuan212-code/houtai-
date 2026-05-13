@@ -1,4 +1,30 @@
-import type { CSSProperties } from 'react';
+import { createElement, type CSSProperties } from 'react';
+import {
+  Bell,
+  Calendar,
+  Check,
+  ChevronDown,
+  CircleHelp,
+  Download,
+  Edit3,
+  Eye,
+  FileText,
+  Home,
+  Image,
+  Info,
+  Mail,
+  Menu,
+  MessageCircle,
+  Plus,
+  Search,
+  Settings,
+  Star,
+  Trash2,
+  Upload,
+  User,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import type { ComponentNode, JsonValue } from '../../domain/types';
 import type { RendererContext } from './rendererTypes';
 
@@ -56,6 +82,36 @@ function radiusValue(node: ComponentNode, fallback: number): number {
 
 function backgroundValue(node: ComponentNode, fallback: string): string {
   return stringProp(node.props.background, stringProp(node.props.fill, fallback));
+}
+
+const iconMap: Record<string, LucideIcon> = {
+  BellOutlined: Bell,
+  CalendarOutlined: Calendar,
+  CheckOutlined: Check,
+  CloseOutlined: X,
+  DeleteOutlined: Trash2,
+  DownOutlined: ChevronDown,
+  DownloadOutlined: Download,
+  EditOutlined: Edit3,
+  EyeOutlined: Eye,
+  FileTextOutlined: FileText,
+  HomeOutlined: Home,
+  InfoCircleOutlined: Info,
+  MailOutlined: Mail,
+  MenuOutlined: Menu,
+  MessageOutlined: MessageCircle,
+  PictureOutlined: Image,
+  PlusOutlined: Plus,
+  QuestionCircleOutlined: CircleHelp,
+  SearchOutlined: Search,
+  SettingOutlined: Settings,
+  StarOutlined: Star,
+  UploadOutlined: Upload,
+  UserOutlined: User,
+};
+
+function iconComponent(name: string): LucideIcon {
+  return iconMap[name] ?? CircleHelp;
 }
 
 function textStyle(node: ComponentNode): CSSProperties {
@@ -231,7 +287,14 @@ export function PrototypeWidgetRenderer({ node, context }: Props) {
     );
   }
 
-  if (node.type === 'IconWidget') return <span style={{ color: stringProp(node.props.color, '#1677ff'), fontSize: numberProp(node.props.size, 24) }}>{stringProp(node.props.icon, 'Icon')}</span>;
+  if (node.type === 'IconWidget') {
+    const size = numberProp(node.props.size, 24);
+    return (
+      <span data-testid={`icon-widget-${node.id}`} style={{ boxSizing: 'border-box', display: 'grid', placeItems: 'center', width: '100%', height: '100%', color: stringProp(node.props.color, '#1677ff'), fontSize: size }}>
+        {createElement(iconComponent(stringProp(node.props.icon, 'QuestionCircleOutlined')), { 'aria-hidden': true, size, strokeWidth: 2 })}
+      </span>
+    );
+  }
   if (node.type === 'DividerWidget') return <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', borderTop: `${numberProp(node.props.thickness, numberProp(node.props.borderWidth, 1))}px ${stringProp(node.props.borderStyle, 'solid')} ${stringProp(node.props.color, stringProp(node.props.borderColor, '#d1d5db'))}`, color: '#6b7280', fontSize: 12 }}>{stringProp(node.props.text)}</div>;
   if (node.type === 'Placeholder') return <div style={{ boxSizing: 'border-box', width: '100%', height: '100%', border: borderStyle(node, '1px dashed #9ca3af'), borderRadius: radiusValue(node, 0), display: 'grid', placeItems: 'center', color: '#6b7280' }}>{stringProp(node.props.label, 'Placeholder')}</div>;
 

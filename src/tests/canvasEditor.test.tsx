@@ -84,6 +84,30 @@ function dispatchDrop(element: HTMLElement, type: string, clientX: number, clien
   fireEvent(element, event);
 }
 
+function dispatchImagePaste(file: File) {
+  const event = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      files: [file],
+      types: [file.type],
+      getData: () => '',
+    },
+  });
+  window.dispatchEvent(event);
+}
+
+function dispatchPlainPaste() {
+  const event = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      files: [],
+      types: [],
+      getData: () => '',
+    },
+  });
+  window.dispatchEvent(event);
+}
+
 function setCanvasViewport(element: HTMLElement, box: { scrollLeft: number; scrollTop: number; clientWidth: number; clientHeight: number }) {
   Object.defineProperties(element, {
     scrollLeft: { configurable: true, writable: true, value: box.scrollLeft },
@@ -161,6 +185,26 @@ describe('AssemblyCanvas page-frame editor', () => {
     });
   });
 
+  it('pastes clipboard images into the active frame as image widgets', async () => {
+    mockCanvasRects();
+    render(<AssemblyCanvas />);
+
+    await screen.findByTestId('canvas-page-frame');
+    dispatchImagePaste(new File(['image-bytes'], 'logo.png', { type: 'image/png' }));
+
+    await waitFor(() => {
+      const { project, selectedNodeId } = useProjectStore.getState();
+      const page = project.pages[0]!;
+      expect(selectedNodeId).toBeDefined();
+      expect(page.nodes[selectedNodeId!]?.type).toBe('ImageWidget');
+    });
+    const { project, selectedNodeId } = useProjectStore.getState();
+    const node = project.pages[0]!.nodes[selectedNodeId!]!;
+    expect(node.name).toBe('图片：logo.png');
+    expect(node.props.src).toEqual(expect.stringMatching(/^data:image\/png;base64,/));
+    expect(node.canvas).toMatchObject({ width: 320, height: 180, parentFrameId: 'frame_page_canvas_default' });
+  });
+
   it('renders selected frame nodes with absolute canvas positioning', async () => {
     render(<AssemblyCanvas />);
 
@@ -172,16 +216,21 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(node).toHaveStyle({ position: 'absolute', left: '64px', top: '72px', width: '180px', height: '48px', zIndex: '3' });
   });
 
-  it('supports Shift click multi-select and Esc clear selection', async () => {
+  it('supports Shift and Ctrl click multi-select and Esc clear selection', async () => {
     replaceProject(projectWithThreeButtons());
     render(<AssemblyCanvas />);
 
     fireEvent.click(await screen.findByTestId('canvas-node-button_one'));
     fireEvent.click(screen.getByTestId('canvas-node-button_two'), { shiftKey: true });
+    const thirdNode = screen.getByTestId('canvas-node-button_three');
+    fireEvent.mouseDown(thirdNode, { ctrlKey: true, button: 0 });
+    fireEvent.mouseUp(thirdNode, { ctrlKey: true, button: 0 });
+    fireEvent.click(thirdNode, { ctrlKey: true });
 
-    expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one', 'button_two']);
+    expect(useProjectStore.getState().selectedNodeIds).toEqual(['button_one', 'button_two', 'button_three']);
     expect(screen.getByTestId('canvas-node-button_one')).toHaveClass('selected');
     expect(screen.getByTestId('canvas-node-button_two')).toHaveClass('selected');
+    expect(screen.getByTestId('canvas-node-button_three')).toHaveClass('selected');
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
@@ -221,6 +270,20 @@ describe('AssemblyCanvas page-frame editor', () => {
 
     await waitFor(() => {
       expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas).toMatchObject({ width: 220, height: 78 });
+    });
+  });
+
+  it('drags a corner radius handle to update the component radius', async () => {
+    mockCanvasRects();
+    render(<AssemblyCanvas />);
+
+    fireEvent.click(await screen.findByTestId('canvas-node-button_one'));
+    fireEvent.mouseDown(screen.getByLabelText('corner-radius-handle'), { clientX: 172, clientY: 160, button: 0 });
+    fireEvent.mouseMove(window, { clientX: 200, clientY: 174 });
+    fireEvent.mouseUp(window);
+
+    await waitFor(() => {
+      expect(useProjectStore.getState().project.pages[0]!.nodes.button_one?.props.radius).toBe(24);
     });
   });
 
@@ -284,8 +347,11 @@ describe('AssemblyCanvas page-frame editor', () => {
 
     fireEvent.click(await screen.findByTestId('canvas-node-button_one'));
     fireEvent.keyDown(document, { key: 'c', ctrlKey: true });
-    fireEvent.keyDown(document, { key: 'v', ctrlKey: true });
+    dispatchPlainPaste();
 
+    await waitFor(() => {
+      expect(useProjectStore.getState().selectedNodeId).not.toBe('button_one');
+    });
     const { project, selectedNodeId } = useProjectStore.getState();
     const page = project.pages[0]!;
     const pasted = selectedNodeId ? page.nodes[selectedNodeId] : undefined;

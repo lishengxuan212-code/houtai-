@@ -1,9 +1,10 @@
 import { Alert, Button, Input, Modal, Space, Typography } from 'antd';
 import { ImagePlus, Settings } from 'lucide-react';
-import { useEffect, useRef, useState, type DragEvent } from 'react';
-import { generatePrototypePlanWithTextModel, generatePrototypePlanWithVisionModel } from '../ai/doubaoPrototypeApi';
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type DragEvent } from 'react';
+import { generatePrototypePlanResultWithTextModel, generatePrototypePlanResultWithVisionModel } from '../ai/doubaoPrototypeApi';
+import { imageInputFromClipboardData, imageInputFromDataTransfer, imageInputFromNavigatorClipboard, imageInputFromUpload, imageInputSourceLabel, type ImageInput } from '../ai/imageInput';
 import { applyImagePrototypePlan, inferImagePrototypePlan, type ImagePrototypeAnalysis, type ImagePrototypePlan, type ImageRegion, type ImageTextItem } from '../ai/imagePrototype';
-import { AI_MODEL_SETTINGS_STORAGE_KEY, isModelConfigured, loadAiModelSettings, saveAiModelSettings, type AiModelSettings } from '../ai/modelSettings';
+import { AI_MODEL_SETTINGS_STORAGE_KEY, isModelConfigured, loadAiModelDefaultSettings, loadAiModelSettings, saveAiModelDefaultSettings, saveAiModelSettings, type AiModelSettings } from '../ai/modelSettings';
 import { useProjectStore } from '../store/projectStore';
 import { WORKBENCH_MODAL_WIDTH } from './workbench/modalConstants';
 
@@ -75,93 +76,14 @@ async function readOcr(file: File): Promise<{ text: string; textItems: ImageText
   }
 }
 
-function clusterIndexes(values: number[], gap = 3) {
-  const clusters: Array<{ start: number; end: number }> = [];
-  for (const value of values) {
-    const last = clusters.at(-1);
-    if (last && value - last.end <= gap) last.end = value;
-    else clusters.push({ start: value, end: value });
-  }
-  return clusters;
-}
-
 function detectVisualRegions(image: HTMLImageElement): ImageRegion[] {
-  const sourceWidth = image.naturalWidth || 1440;
-  const sourceHeight = image.naturalHeight || 900;
-  const sampleWidth = 360;
-  const sampleHeight = Math.max(180, Math.round((sourceHeight / sourceWidth) * sampleWidth));
-  const canvas = document.createElement('canvas');
-  canvas.width = sampleWidth;
-  canvas.height = sampleHeight;
-  const context = canvas.getContext('2d', { willReadFrequently: true });
-  if (!context) return [];
-  context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
-  const data = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
-  const rowDensity: number[] = [];
-  const saturatedPixels: Array<{ x: number; y: number }> = [];
-
-  for (let y = 0; y < sampleHeight; y += 1) {
-    let rowActive = 0;
-    for (let x = 0; x < sampleWidth; x += 1) {
-      const offset = (y * sampleWidth + x) * 4;
-      const red = data[offset] ?? 255;
-      const green = data[offset + 1] ?? 255;
-      const blue = data[offset + 2] ?? 255;
-      const max = Math.max(red, green, blue);
-      const min = Math.min(red, green, blue);
-      const dark = max < 225;
-      const saturated = max - min > 50 && max > 80;
-      if (dark) rowActive += 1;
-      if (saturated && y > sampleHeight * 0.12) saturatedPixels.push({ x, y });
-    }
-    rowDensity.push(rowActive / sampleWidth);
-  }
-
-  const scaleX = sourceWidth / sampleWidth;
-  const scaleY = sourceHeight / sampleHeight;
-  const denseRows = rowDensity.map((density, y) => (density > 0.2 ? y : -1)).filter((y) => y >= 0);
-  const rowClusters = clusterIndexes(denseRows, 4).filter((cluster) => cluster.end - cluster.start >= 1);
-  const regions: ImageRegion[] = [];
-
-  const topCluster = rowClusters.find((cluster) => cluster.start < sampleHeight * 0.18);
-  if (topCluster) {
-    regions.push({ kind: 'header', x: 0, y: Math.max(0, topCluster.start - 12) * scaleY, width: sourceWidth, height: Math.max(64, (topCluster.end - topCluster.start + 24) * scaleY), score: 0.8 });
-  }
-
-  const tableRows = rowClusters.filter((cluster) => cluster.start > sampleHeight * 0.28 && cluster.end - cluster.start <= 4);
-  if (tableRows.length >= 4) {
-    const first = tableRows[0]!;
-    const last = tableRows.at(-1)!;
-    regions.push({ kind: 'table', x: sourceWidth * 0.04, y: Math.max(0, first.start - 16) * scaleY, width: sourceWidth * 0.78, height: Math.max(220, (last.end - first.start + 36) * scaleY), score: Math.min(1, tableRows.length / 8) });
-  }
-
-  const topDense = rowClusters.find((cluster) => cluster.start > sampleHeight * 0.12 && cluster.start < sampleHeight * 0.36 && cluster.end - cluster.start > 6);
-  if (topDense) {
-    regions.push({ kind: 'search', x: sourceWidth * 0.04, y: Math.max(0, topDense.start - 12) * scaleY, width: sourceWidth * 0.78, height: Math.max(80, (topDense.end - topDense.start + 24) * scaleY), score: 0.72 });
-  }
-
-  const buttonClusters = clusterIndexes(saturatedPixels.map((point) => point.y).sort((left, right) => left - right), 5).slice(0, 4);
-  for (const cluster of buttonClusters) {
-    const points = saturatedPixels.filter((point) => point.y >= cluster.start && point.y <= cluster.end);
-    if (points.length < 30) continue;
-    const minX = Math.min(...points.map((point) => point.x));
-    const maxX = Math.max(...points.map((point) => point.x));
-    if (maxX - minX < 12 || maxX - minX > sampleWidth * 0.35) continue;
-    regions.push({ kind: 'button', x: minX * scaleX, y: cluster.start * scaleY, width: Math.max(72, (maxX - minX) * scaleX), height: Math.max(32, (cluster.end - cluster.start) * scaleY), score: 0.7 });
-  }
-
-  const cardRows = rowClusters.filter((cluster) => cluster.start > sampleHeight * 0.14 && cluster.start < sampleHeight * 0.45 && cluster.end - cluster.start > 8);
-  if (cardRows.length >= 3) {
-    cardRows.slice(0, 4).forEach((cluster, index) => {
-      regions.push({ kind: 'card', x: sourceWidth * (0.04 + index * 0.2), y: Math.max(0, cluster.start - 8) * scaleY, width: sourceWidth * 0.18, height: Math.max(90, (cluster.end - cluster.start + 16) * scaleY), score: 0.65 });
-    });
-  }
-
-  if (!regions.some((region) => region.kind === 'table' || region.kind === 'form')) {
-    regions.push({ kind: sourceHeight > sourceWidth * 1.1 ? 'form' : 'content', x: sourceWidth * 0.04, y: sourceHeight * 0.18, width: sourceWidth * 0.78, height: sourceHeight * 0.58, score: 0.45 });
-  }
-
-  return regions;
+  const width = image.naturalWidth || 1440;
+  const height = image.naturalHeight || 900;
+  return [
+    { kind: 'header', x: 0, y: 0, width, height: 72, score: 0.5 },
+    { kind: 'search', x: width * 0.04, y: 96, width: width * 0.78, height: 96, score: 0.5 },
+    { kind: 'table', x: width * 0.04, y: 220, width: width * 0.86, height: Math.max(260, height * 0.45), score: 0.5 },
+  ];
 }
 
 async function analyzeImageFile(file: File): Promise<ImagePrototypeAnalysis> {
@@ -183,16 +105,37 @@ export function AiPanel() {
   const currentFrameId = useProjectStore((state) => state.currentFrameId);
   const commitProject = useProjectStore((state) => state.commitProject);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | undefined>();
+  const [selectedImage, setSelectedImage] = useState<ImageInput | undefined>();
   const [plan, setPlan] = useState<ImagePrototypePlan | undefined>();
   const [modelSettings, setModelSettings] = useState<AiModelSettings>(() => loadAiModelSettings());
   const [modelStatus, setModelStatus] = useState<string | undefined>();
   const [generating, setGenerating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const chooseImage = useCallback((input: ImageInput | undefined) => {
+    if (!input) {
+      setModelStatus('未识别到可用图片。请上传、拖拽图片，或粘贴图片 / SVG 内容。');
+      return;
+    }
+    setSelectedImage(input);
+    setPlan(undefined);
+    setModelStatus(undefined);
+  }, []);
+
   function updateModelSettings(next: AiModelSettings) {
     setModelSettings(next);
     saveAiModelSettings(next);
+  }
+
+  function saveAsDefaultModelSettings() {
+    saveAiModelDefaultSettings(modelSettings);
+    setModelStatus('已保存为默认模型配置，包含 API Key。');
+  }
+
+  function useDefaultModelSettings() {
+    const defaults = loadAiModelDefaultSettings();
+    updateModelSettings(defaults);
+    setModelStatus('已使用默认模型配置。');
   }
 
   useEffect(() => {
@@ -204,7 +147,7 @@ export function AiPanel() {
   }, []);
 
   async function generateFromUpload() {
-    const file = selectedFile;
+    const file = selectedImage?.file;
     if (!file) return;
     setGenerating(true);
     setModelStatus(undefined);
@@ -212,23 +155,14 @@ export function AiPanel() {
       let nextPlan: ImagePrototypePlan | undefined;
       let localAnalysis: ImagePrototypeAnalysis | undefined;
       if (isModelConfigured(modelSettings.visionStructure)) {
-        try {
-          nextPlan = await generatePrototypePlanWithVisionModel(modelSettings.visionStructure, file);
-          setModelStatus(nextPlan ? '已使用视觉理解模型生成组件结构。' : '视觉理解模型未返回有效结构，已切换为本地识别。');
-        } catch (error) {
+        const result = await generatePrototypePlanResultWithVisionModel(modelSettings.visionStructure, file).catch(async (error: unknown) => {
           const message = error instanceof Error ? error.message : '视觉理解模型调用失败';
-          if (message.includes('can only support text')) {
-            localAnalysis = await analyzeImageFile(file);
-            try {
-              nextPlan = await generatePrototypePlanWithTextModel(modelSettings.visionStructure, localAnalysis);
-              setModelStatus('当前接入点只支持文本，已改用“本地图片分析 + 文本模型规划”生成组件结构。');
-            } catch (textError) {
-              setModelStatus(textError instanceof Error ? `${textError.message}，已切换为本地识别。` : '文本模型规划失败，已切换为本地识别。');
-            }
-          } else {
-            setModelStatus(`${message}，已切换为本地识别。`);
-          }
-        }
+          if (!message.includes('can only support text')) throw error;
+          localAnalysis = await analyzeImageFile(file);
+          return generatePrototypePlanResultWithTextModel(modelSettings.visionStructure, localAnalysis);
+        });
+        nextPlan = result.ok ? result.plan : undefined;
+        setModelStatus(result.ok ? '已使用模型生成组件结构。' : `${result.reason} 已切换为本地识别。`);
       } else {
         setModelStatus('未配置视觉理解模型，已使用本地 OCR 和像素识别。');
       }
@@ -236,29 +170,43 @@ export function AiPanel() {
         const analysis = localAnalysis ?? await analyzeImageFile(file);
         nextPlan = inferImagePrototypePlan(analysis);
       }
-      const beforeNodeIds = new Set(project.pages.find((page) => page.id === currentPageId)?.nodes ? Object.keys(project.pages.find((page) => page.id === currentPageId)!.nodes) : []);
+      const pageBefore = project.pages.find((page) => page.id === currentPageId);
+      const beforeNodeIds = new Set(pageBefore ? Object.keys(pageBefore.nodes) : []);
       const nextProject = applyImagePrototypePlan(project, currentPageId, currentFrameId, nextPlan);
       const nextPage = nextProject.pages.find((page) => page.id === currentPageId);
       const generatedNodeIds = nextPage ? Object.keys(nextPage.nodes).filter((nodeId) => !beforeNodeIds.has(nodeId)) : [];
       const firstGeneratedNodeId = generatedNodeIds[0];
       commitProject(nextProject, currentPageId, firstGeneratedNodeId);
-      setModelStatus(generatedNodeIds.length > 0 ? `已生成并插入 ${generatedNodeIds.length} 个组件到当前画板。` : '未生成可插入组件，请换一张更清晰的截图或检查模型返回内容。');
+      setModelStatus(generatedNodeIds.length > 0 ? `已生成并插入 ${generatedNodeIds.length} 个组件到当前画布。` : '未生成可插入组件，请换一张更清晰的截图或检查模型返回内容。');
       setPlan(nextPlan);
+    } catch (error) {
+      setModelStatus(error instanceof Error ? error.message : 'AI 识图生成失败。');
     } finally {
       setGenerating(false);
     }
   }
 
-  function chooseFile(file: File | undefined) {
-    if (!file) return;
-    setSelectedFile(file);
-    setPlan(undefined);
-    setModelStatus(undefined);
+  async function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    chooseImage(await imageInputFromDataTransfer(event.dataTransfer));
   }
 
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
+  async function handlePaste(event: ReactClipboardEvent<HTMLDivElement>) {
+    const input = await imageInputFromClipboardData(event.clipboardData);
+    if (!input) {
+      setModelStatus('剪贴板中没有可用图片，或 SVG 内容包含不安全代码。');
+      return;
+    }
     event.preventDefault();
-    chooseFile(Array.from(event.dataTransfer.files).find((file) => file.type.startsWith('image/')));
+    chooseImage(input);
+  }
+
+  async function pasteImageFromClipboard() {
+    try {
+      chooseImage(await imageInputFromNavigatorClipboard());
+    } catch (error) {
+      setModelStatus(error instanceof Error ? `读取剪贴板图片失败：${error.message}` : '读取剪贴板图片失败。');
+    }
   }
 
   return (
@@ -271,10 +219,13 @@ export function AiPanel() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.svg"
           hidden
-          onChange={(event) => chooseFile(event.target.files?.[0])}
+          onChange={(event) => chooseImage(imageInputFromUpload(event.target.files?.[0]))}
         />
+        <Button block style={{ marginTop: 12 }} onClick={() => void pasteImageFromClipboard()}>
+          从剪贴板粘贴图片
+        </Button>
         <div
           className="ai-image-upload-zone"
           role="button"
@@ -282,7 +233,8 @@ export function AiPanel() {
           tabIndex={0}
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
+          onDrop={(event) => void handleDrop(event)}
+          onPaste={(event) => void handlePaste(event)}
           onKeyDown={(event) => {
             if (event.key !== 'Enter' && event.key !== ' ') return;
             event.preventDefault();
@@ -298,11 +250,11 @@ export function AiPanel() {
           }}
         >
           <ImagePlus size={28} />
-          <p>上传后台截图、草图或页面图片</p>
-          <p className="ant-upload-hint">点击选择图片，或把图片拖到这里。</p>
-          {selectedFile ? <Typography.Text type="secondary">已选择：{selectedFile.name}</Typography.Text> : null}
+          <p>上传后台截图、草图、页面图片或 SVG</p>
+          <p className="ant-upload-hint">点击选择、拖入图片，或粘贴图片 / SVG 内容。</p>
+          {selectedImage ? <Typography.Text type="secondary">已选择：{selectedImage.file.name}（{imageInputSourceLabel(selectedImage.source)}）</Typography.Text> : null}
         </div>
-        <Button type="primary" block style={{ marginTop: 8 }} loading={generating} disabled={!selectedFile} onClick={() => void generateFromUpload()}>
+        <Button type="primary" block style={{ marginTop: 8 }} loading={generating} disabled={!selectedImage} onClick={() => void generateFromUpload()}>
           识别图片并生成后台原型
         </Button>
         {modelStatus ? <Alert style={{ marginTop: 12 }} type={modelStatus.includes('失败') ? 'warning' : 'info'} showIcon message={modelStatus} /> : null}
@@ -310,6 +262,10 @@ export function AiPanel() {
       </section>
       <Modal title="模型配置" open={settingsOpen} onCancel={() => setSettingsOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <Space wrap>
+            <Button onClick={useDefaultModelSettings}>使用默认配置</Button>
+            <Button onClick={saveAsDefaultModelSettings}>保存为默认配置</Button>
+          </Space>
           <section>
             <Typography.Text strong>视觉理解 / 结构生成</Typography.Text>
             <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 12 }}>
@@ -328,7 +284,7 @@ export function AiPanel() {
               <Input
                 addonBefore="模型名"
                 value={modelSettings.visionStructure.model}
-                placeholder="例如填写你的 Doubao-Seed-2.0-pro 模型接入点名称"
+                placeholder="例如 qwen3.6-plus"
                 onChange={(event) => updateModelSettings({ ...modelSettings, visionStructure: { ...modelSettings.visionStructure, model: event.target.value } })}
               />
               <Typography.Text type="secondary">{modelSettings.visionStructure.responsibility}</Typography.Text>
@@ -346,13 +302,11 @@ export function AiPanel() {
               <Input.Password
                 addonBefore="API Key"
                 value={modelSettings.visionEmbedding.apiKey}
-                placeholder="填写你的视觉向量模型 API Key"
                 onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, apiKey: event.target.value } })}
               />
               <Input
                 addonBefore="模型名"
                 value={modelSettings.visionEmbedding.model}
-                placeholder="例如填写你的 Doubao-embedding-vision 模型接入点名称"
                 onChange={(event) => updateModelSettings({ ...modelSettings, visionEmbedding: { ...modelSettings.visionEmbedding, model: event.target.value } })}
               />
               <Typography.Text type="secondary">{modelSettings.visionEmbedding.responsibility}</Typography.Text>

@@ -662,30 +662,8 @@ function withS21Schemas(definition: ComponentDefinition): ComponentDefinition {
   if (definition.type === 'PageContainer') {
     return {
       ...definition,
-      defaultProps: {
-        ...definition.defaultProps,
-        regions: definition.defaultProps.regions ?? {
-          showTitle: true,
-          showDescription: true,
-          showToolbar: false,
-          showContent: true,
-          showFooter: false,
-        },
-      },
-      slotSchema: [
-        {
-          key: 'regions',
-          id: 'regions',
-          title: '区域',
-          fields: [
-            field('props.regions.showTitle', '页面标题区', 'switch'),
-            field('props.regions.showDescription', '页面说明区', 'switch'),
-            field('props.regions.showToolbar', '工具栏区', 'switch'),
-            field('props.regions.showContent', '内容区', 'switch'),
-            field('props.regions.showFooter', '底部操作区', 'switch'),
-          ],
-        },
-      ],
+      defaultProps: { ...definition.defaultProps },
+      slotSchema: [],
     };
   }
   return definition;

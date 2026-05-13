@@ -4,7 +4,7 @@ import type { ComponentNode } from '../domain/types';
 import { RenderNode } from '../registry/renderers';
 
 describe('PageContainer slots', () => {
-  it('hides description region when disabled', () => {
+  it('renders title and description without configurable region switches', () => {
     const node: ComponentNode = {
       id: 'page_container_1',
       type: 'PageContainer',
@@ -12,7 +12,7 @@ describe('PageContainer slots', () => {
       props: {
         title: '订单管理',
         description: '查询、查看和处理订单',
-        regions: { showTitle: true, showDescription: false, showToolbar: true, showContent: true, showFooter: false },
+        regions: { showTitle: false, showDescription: false, showToolbar: true, showContent: false, showFooter: true },
       },
       children: [],
     };
@@ -20,7 +20,8 @@ describe('PageContainer slots', () => {
     render(<RenderNode node={node} context={{ mode: 'preview' }} />);
 
     expect(screen.getByText('订单管理')).toBeInTheDocument();
-    expect(screen.queryByText('查询、查看和处理订单')).not.toBeInTheDocument();
-    expect(screen.getByText('工具栏区')).toBeInTheDocument();
+    expect(screen.getByText('查询、查看和处理订单')).toBeInTheDocument();
+    expect(screen.queryByText('工具栏区')).not.toBeInTheDocument();
+    expect(screen.queryByText('底部操作区')).not.toBeInTheDocument();
   });
 });

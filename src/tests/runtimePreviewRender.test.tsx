@@ -285,6 +285,48 @@ describe('runtime preview rendering', () => {
     expect(document.querySelector('.resize-handle')).not.toBeInTheDocument();
   });
 
+  it('lets shape widgets fill their canvas bounds in preview frames', () => {
+    const shapeProject: Project = {
+      ...project,
+      pages: [
+        {
+          id: 'page_main',
+          name: 'Shape page',
+          route: '/',
+          rootNodeId: 'root',
+          frames: [{ id: 'frame_a', name: 'Frame', x: 0, y: 0, width: 640, height: 480, zIndex: 1 }],
+          nodes: {
+            root: { id: 'root', type: 'PageContainer', name: 'Root', props: {}, children: ['rect_1', 'circle_1'] },
+            rect_1: {
+              id: 'rect_1',
+              type: 'Rectangle',
+              name: 'Rectangle',
+              props: { fill: '#dbeafe', radius: 10 },
+              canvas: { x: 32, y: 48, width: 240, height: 120, zIndex: 1, parentFrameId: 'frame_a' },
+            },
+            circle_1: {
+              id: 'circle_1',
+              type: 'Circle',
+              name: 'Circle',
+              props: { fill: '#fee2e2' },
+              canvas: { x: 300, y: 48, width: 120, height: 120, zIndex: 2, parentFrameId: 'frame_a' },
+            },
+          },
+        },
+      ],
+    };
+
+    render(
+      <RuntimeProvider project={shapeProject} initialPageId="page_main">
+        <RuntimeRenderer project={shapeProject} />
+      </RuntimeProvider>,
+    );
+
+    expect(screen.getByTestId('runtime-canvas-node-rect_1')).toHaveStyle({ width: '240px', height: '120px', borderRadius: '10px', overflow: 'hidden' });
+    expect(screen.getByTestId('runtime-node-fill-rect_1')).toHaveStyle({ width: '100%', height: '100%' });
+    expect(screen.getByTestId('runtime-node-fill-circle_1')).toHaveStyle({ width: '100%', height: '100%' });
+  });
+
   it('preserves structured root-node preview when a page has no frames while excluding runtime-hidden nodes', () => {
     const legacyProject: Project = {
       ...project,

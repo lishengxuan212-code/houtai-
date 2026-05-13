@@ -1,5 +1,5 @@
-import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ResizablePanels } from '../editor/workbench/ResizablePanels';
 import { WorkbenchShell } from '../editor/workbench/WorkbenchShell';
@@ -20,6 +20,7 @@ describe('WorkbenchShell', () => {
     expect(html).toContain('交互');
     expect(html).toContain('数据');
     expect(html).toContain('AI 生成');
+    expect(html).toContain('布局调整');
     expect(html).toContain('导出');
   });
 

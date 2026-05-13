@@ -1,5 +1,5 @@
 import type { JsonRecord, JsonValue } from '../domain/types';
-import type { ImagePrototypeAnalysis, ImagePrototypePlan } from './imagePrototype';
+import type { ImagePrototypeAnalysis, ImagePrototypePlan, PrototypeGenerationResult } from './imagePrototype';
 import type { AiModelConfig } from './modelSettings';
 
 type ChatResponse = {
@@ -9,6 +9,47 @@ type ChatResponse = {
     };
   }>;
 };
+
+const JSON_ONLY_SYSTEM_RULE = [
+  'Only return one valid JSON object.',
+  'Do not return Markdown fences, explanations, comments, or multiple JSON objects.',
+  'Use this exact top-level shape: {"title":"...","summary":"...","nodes":[{"type":"Button","name":"...","x":0,"y":0,"width":100,"height":40,"props":{}}]}.',
+  'Prefer a flat nodes array. Every node must include type, name, x, y, width, height, and props.',
+  'Allowed component types: PageTitle, ModuleTitle, BodyText, Button, Input, Select, SearchBar, Table, Form, Tabs, Modal, Drawer, WhitePanel, VisualBlock, TableSkeleton, BadgePill, ImageWidget, IconWidget, DividerWidget.',
+  'Use 1200x760 canvas coordinates. Put all visible controls from the screenshot into nodes. Use screenshot text for labels, placeholders, buttons, columns, options, and titles.',
+  'For admin filters, use Input or Select nodes. For dropdown-looking fields, use Select. For data grids, use Table with columns and actions.',
+].join(' ');
+
+function withJsonOnlyRule(prompt: string) {
+  return `${JSON_ONLY_SYSTEM_RULE}\n\n${prompt}`;
+}
+
+function chatRequestBody(model: string, messages: unknown[], includeResponseFormat = true) {
+  return includeResponseFormat ? {
+    model,
+    response_format: { type: 'json_object' },
+    messages,
+  } : { model, messages };
+}
+
+async function postChatCompletion(config: AiModelConfig, messages: unknown[]) {
+  const request = (includeResponseFormat: boolean) =>
+    fetch(config.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(chatRequestBody(config.model, messages, includeResponseFormat)),
+    });
+  let response = await request(true);
+  if (response.ok) return response;
+  const message = await readErrorMessage(response);
+  if (!message.toLowerCase().includes('response_format')) throw new Error(message);
+  response = await request(false);
+  if (!response.ok) throw new Error(await readErrorMessage(response));
+  return response;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -238,6 +279,25 @@ function extractJson(text: string) {
   return raw.slice(start, end + 1);
 }
 
+function readChatText(data: ChatResponse) {
+  const content = data.choices?.[0]?.message?.content;
+  return typeof content === 'string' ? content : JSON.stringify(content ?? '');
+}
+
+function normalizeModelJson(text: string): PrototypeGenerationResult {
+  const json = extractJson(text);
+  if (!json) return { ok: false, reason: '模型返回内容中没有可解析的 JSON 对象。', rawText: text };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json) as unknown;
+  } catch (error) {
+    return { ok: false, reason: '模型返回的 JSON 解析失败。', rawText: text, details: error instanceof Error ? error.message : error };
+  }
+  const plan = normalizePlan(parsed);
+  if (!plan) return { ok: false, reason: '模型返回了 JSON，但没有识别到可插入的组件。', rawText: text, details: parsed };
+  return { ok: true, plan, rawText: text };
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -288,43 +348,34 @@ async function readErrorMessage(response: Response) {
   return `视觉理解模型请求失败：${response.status} ${raw.slice(0, 300)}`;
 }
 
-export async function generatePrototypePlanWithVisionModel(config: AiModelConfig, file: File): Promise<ImagePrototypePlan | undefined> {
+export async function generatePrototypePlanResultWithVisionModel(config: AiModelConfig, file: File): Promise<PrototypeGenerationResult> {
   const imageUrl = await fileToCompressedDataUrl(file);
-  const response = await fetch(config.apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
+  const response = await postChatCompletion(config, [
+    {
+      role: 'system',
+      content: withJsonOnlyRule(
+        '你是 Admin Prototype Studio 的后台截图转原型助手。识别截图中的后台页面结构，输出可直接插入画布的组件计划。不要输出解释文字。',
+      ),
     },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
+    {
+      role: 'user',
+      content: [
         {
-          role: 'system',
-          content:
-            '你是后台原型截图识别助手。请识别图片中的完整页面结构，并只输出页面 JSON，不要输出解释文字。优先使用 page、frame、text、button、input、select、table、form、tabs、modal、drawer、image、icon、badge、divider 等基础节点；每个节点可包含 layout、style、props、children。坐标使用 1200x760 画板坐标。',
+          type: 'text',
+          text:
+            '请根据图片生成后台原型组件 JSON。必须输出 {"title":"...","summary":"...","nodes":[...]}。nodes 使用 1200x760 坐标。每个节点必须有 type、name、x、y、width、height、props。字段控件按截图选择 Input 或 Select；表格输出 Table，并在 props.columns 中保留截图列名，在 props.actions 中保留行操作按钮。只使用已允许的组件类型，不要输出 page/frame 树，除非无法表达布局。',
         },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text:
-                '请把这张后台页面图片转换为可渲染页面 JSON，推荐格式为 {"type":"page","title":"...","children":[{"type":"frame","name":"筛选区","layout":{"x":40,"y":96,"width":960,"height":96},"style":{"background":"#fff"},"children":[{"type":"input","label":"名称","layout":{"x":24,"y":28,"width":180,"height":36}}]},{"type":"table","name":"数据列表","columns":["名称","状态","操作"],"actions":["详情"],"layout":{"x":40,"y":220,"width":960,"height":320}}]}。内容必须来自图片，包括标题、按钮文案、查询字段、表格列、表单字段和空状态。',
-            },
-            { type: 'image_url', image_url: { url: imageUrl } },
-          ],
-        },
+        { type: 'image_url', image_url: { url: imageUrl } },
       ],
-    }),
-  });
-  if (!response.ok) throw new Error(await readErrorMessage(response));
+    },
+  ]);
   const data = (await response.json()) as ChatResponse;
-  const content = data.choices?.[0]?.message?.content;
-  const text = typeof content === 'string' ? content : JSON.stringify(content ?? '');
-  const json = extractJson(text);
-  if (!json) return undefined;
-  return normalizePlan(JSON.parse(json));
+  return normalizeModelJson(readChatText(data));
+}
+
+export async function generatePrototypePlanWithVisionModel(config: AiModelConfig, file: File): Promise<ImagePrototypePlan | undefined> {
+  const result = await generatePrototypePlanResultWithVisionModel(config, file);
+  return result.ok ? result.plan : undefined;
 }
 
 function summarizeImageAnalysis(analysis: ImagePrototypeAnalysis) {
@@ -344,33 +395,24 @@ function summarizeImageAnalysis(analysis: ImagePrototypeAnalysis) {
   ].join('\n\n');
 }
 
-export async function generatePrototypePlanWithTextModel(config: AiModelConfig, analysis: ImagePrototypeAnalysis): Promise<ImagePrototypePlan | undefined> {
-  const response = await fetch(config.apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
+export async function generatePrototypePlanResultWithTextModel(config: AiModelConfig, analysis: ImagePrototypeAnalysis): Promise<PrototypeGenerationResult> {
+  const response = await postChatCompletion(config, [
+    {
+      role: 'system',
+      content: withJsonOnlyRule(
+        '你是 Admin Prototype Studio 的后台原型结构规划助手。输入来自本地图片 OCR 和像素区域检测结果。请根据这些文本和区域推断完整后台页面，并只输出可插入画布的组件计划 JSON。',
+      ),
     },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        {
-          role: 'system',
-          content:
-            '你是后台原型结构规划助手。输入来自本地图片 OCR 和像素区域检测结果。请根据这些文本和区域推断完整后台页面，并只输出页面 JSON。优先使用 page、frame、text、button、input、select、table、form、tabs、modal、drawer、image、icon、badge、divider 等基础节点；每个节点可包含 layout、style、props、children。坐标使用 1200x760 画板坐标。',
-        },
-        {
-          role: 'user',
-          content: `请根据以下图片分析结果生成可渲染页面 JSON，推荐格式为 {"type":"page","title":"...","children":[{"type":"frame","name":"筛选区","layout":{"x":40,"y":96,"width":960,"height":96},"children":[{"type":"input","label":"名称","layout":{"x":24,"y":28,"width":180,"height":36}}]},{"type":"table","name":"数据列表","columns":["名称","状态","操作"],"actions":["详情"],"layout":{"x":40,"y":220,"width":960,"height":320}}]}。\n\n${summarizeImageAnalysis(analysis)}`,
-        },
-      ],
-    }),
-  });
-  if (!response.ok) throw new Error(await readErrorMessage(response));
+    {
+      role: 'user',
+      content: `请根据以下图片分析结果生成后台原型组件 JSON。必须输出 {"title":"...","summary":"...","nodes":[...]}。nodes 使用 1200x760 坐标。每个节点必须有 type、name、x、y、width、height、props。字段控件按 OCR 和区域推断为 Input 或 Select；表格输出 Table，并在 props.columns 中保留列名，在 props.actions 中保留操作按钮。只使用已允许的组件类型。\n\n${summarizeImageAnalysis(analysis)}`,
+    },
+  ]);
   const data = (await response.json()) as ChatResponse;
-  const content = data.choices?.[0]?.message?.content;
-  const text = typeof content === 'string' ? content : JSON.stringify(content ?? '');
-  const json = extractJson(text);
-  if (!json) return undefined;
-  return normalizePlan(JSON.parse(json));
+  return normalizeModelJson(readChatText(data));
+}
+
+export async function generatePrototypePlanWithTextModel(config: AiModelConfig, analysis: ImagePrototypeAnalysis): Promise<ImagePrototypePlan | undefined> {
+  const result = await generatePrototypePlanResultWithTextModel(config, analysis);
+  return result.ok ? result.plan : undefined;
 }

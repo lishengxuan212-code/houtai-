@@ -15,10 +15,10 @@ describe('component content/data/slot schema', () => {
     expect(getComponentDefinition('pro.EditableProTable')?.dataSchema?.some((group) => group.fields.some((field) => field.editor === 'tableRows'))).toBe(true);
   });
 
-  it('defines PageContainer regions as slot schema', () => {
+  it('does not expose PageContainer region switches as editable slot schema', () => {
     const pageContainer = getComponentDefinition('PageContainer');
 
-    expect(pageContainer?.slotSchema?.some((group) => group.fields.some((field) => field.path === 'props.regions.showToolbar'))).toBe(true);
+    expect(pageContainer?.slotSchema?.some((group) => group.fields.some((field) => field.path.startsWith('props.regions.')))).toBe(false);
   });
 
   it('uses visual collection editors for options and structured navigation content', () => {

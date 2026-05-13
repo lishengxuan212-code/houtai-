@@ -21,7 +21,7 @@ function RuntimeNode({ page, node, context }: { page: Page; node: ComponentNode;
     <RuntimeNode key={child.id} page={page} node={child} context={context} />
   ));
   return (
-    <div ref={ref}>
+    <div ref={ref} className="runtime-node-fill" data-testid={`runtime-node-fill-${node.id}`} style={{ width: '100%', height: '100%' }}>
       <RenderNode node={runtimeNode} context={context}>
         {children}
       </RenderNode>

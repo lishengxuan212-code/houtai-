@@ -6,23 +6,15 @@ import type { NodeRendererProps } from './rendererTypes';
 import { asString } from './primitive';
 
 export function PageContainerRenderer({ node, children }: NodeRendererProps) {
-  const regions = node.props.regions && typeof node.props.regions === 'object' && !Array.isArray(node.props.regions) ? node.props.regions : {};
-  const showTitle = regions.showTitle !== false;
-  const showDescription = regions.showDescription !== false;
-  const showToolbar = regions.showToolbar === true;
-  const showContent = regions.showContent !== false;
-  const showFooter = regions.showFooter === true;
   return (
     <main className="runtime-page">
       <div className="runtime-page-header">
-        {showTitle ? <Typography.Title level={3}>{asString(node.props.title, node.name)}</Typography.Title> : null}
-        {showDescription ? <Typography.Text type="secondary">{asString(node.props.description)}</Typography.Text> : null}
+        <Typography.Title level={3}>{asString(node.props.title, node.name)}</Typography.Title>
+        <Typography.Text type="secondary">{asString(node.props.description)}</Typography.Text>
       </div>
-      {showToolbar ? <div className="runtime-page-toolbar">工具栏区</div> : null}
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        {showContent ? children : null}
+        {children}
       </Space>
-      {showFooter ? <div className="runtime-page-footer">底部操作区</div> : null}
     </main>
   );
 }

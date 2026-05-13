@@ -52,6 +52,10 @@ export type ImagePrototypePlan = {
   }>;
 };
 
+export type PrototypeGenerationResult =
+  | { ok: true; plan: ImagePrototypePlan; rawText: string }
+  | { ok: false; reason: string; rawText?: string; details?: unknown };
+
 const FRAME_WIDTH = 1200;
 const FRAME_HEIGHT = 760;
 const ACTION_WORDS = ['新增', '新建', '创建', '保存', '提交', '查询', '搜索', '重置', '导出', '导入', '删除', '编辑', '详情', 'Add', 'Save', 'Search', 'Reset', 'Export'];

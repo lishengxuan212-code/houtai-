@@ -1,13 +1,14 @@
 import { Button, Empty, Input, List, Modal, Space, Tag, Typography } from 'antd';
-import { Bot, GitBranch, Home, Package, Play, SquarePen } from 'lucide-react';
+import { Bot, GitBranch, Home, LayoutGrid, Package, Play, SquarePen } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { runAiRulesForPage } from '../../ai/rules';
 import { exportPlainPrd } from '../../export/plainPrd';
 import { useProjectStore } from '../../store/projectStore';
-import { LogicBoardPanel } from '../LogicBoardPanel';
 import { AiPanel } from '../AiPanel';
-import { ProjectToolbarActions } from '../project/ProjectToolbarActions';
 import { ComponentSystemPanel } from '../components/ComponentSystemPanel';
+import { LayoutAdjustmentPanel } from '../LayoutAdjustmentPanel';
+import { LogicBoardPanel } from '../LogicBoardPanel';
+import { ProjectToolbarActions } from '../project/ProjectToolbarActions';
 import { WORKBENCH_MODAL_WIDTH } from './modalConstants';
 
 const severityColor = {
@@ -21,6 +22,7 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
   const [exportOpen, setExportOpen] = useState(false);
   const [aiCheckOpen, setAiCheckOpen] = useState(false);
   const [aiGenerateOpen, setAiGenerateOpen] = useState(false);
+  const [layoutAdjustOpen, setLayoutAdjustOpen] = useState(false);
   const [componentSystemOpen, setComponentSystemOpen] = useState(false);
   const project = useProjectStore((state) => state.project);
   const currentPageId = useProjectStore((state) => state.currentPageId);
@@ -42,6 +44,7 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
         <ProjectToolbarActions onExport={() => setExportOpen(true)} />
         <Button icon={<Package size={16} />} onClick={() => setComponentSystemOpen(true)}>组件系统</Button>
         <Button icon={<Bot size={16} />} onClick={() => setAiGenerateOpen(true)}>AI 生成</Button>
+        <Button icon={<LayoutGrid size={16} />} onClick={() => setLayoutAdjustOpen(true)}>布局调整</Button>
         <Button icon={<Bot size={16} />} onClick={() => setAiCheckOpen(true)}>AI 检查</Button>
         <Button icon={<GitBranch size={16} />} onClick={() => setLogicBoardOpen(true)}>逻辑看板</Button>
         <Button
@@ -80,6 +83,9 @@ export function TopToolbar({ onBackHome }: { onBackHome?: (() => void) | undefin
       </Modal>
       <Modal title="AI 生成页面" open={aiGenerateOpen} onCancel={() => setAiGenerateOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <AiPanel />
+      </Modal>
+      <Modal title="AI 布局调整" open={layoutAdjustOpen} onCancel={() => setLayoutAdjustOpen(false)} footer={null} width={1040}>
+        <LayoutAdjustmentPanel onApplied={() => setLayoutAdjustOpen(false)} />
       </Modal>
       <Modal title="组件系统" open={componentSystemOpen} onCancel={() => setComponentSystemOpen(false)} footer={null} width={WORKBENCH_MODAL_WIDTH}>
         <ComponentSystemPanel />

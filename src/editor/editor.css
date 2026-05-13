@@ -507,6 +507,30 @@
   cursor: nwse-resize;
 }
 
+.corner-radius-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #1677ff;
+  background: #ffffff;
+  border-radius: 50%;
+  z-index: 4;
+  cursor: ew-resize;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.14);
+}
+
+.corner-radius-handle::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 1px;
+  transform: translate(-50%, -50%);
+  border-top: 1px solid #1677ff;
+  pointer-events: none;
+}
+
 .canvas-context-menu {
   position: absolute;
   z-index: 1000;
