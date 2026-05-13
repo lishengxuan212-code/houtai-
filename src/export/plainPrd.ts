@@ -83,7 +83,10 @@ function rowValues(node: ComponentNode): string[] {
 }
 
 function actionLabels(node: ComponentNode): string[] {
-  return labelsFromList(node.props.actions);
+  const flat = labelsFromList(node.props.actions);
+  const rowActions = asRecord(node.props.rowActions);
+  const grouped = rowActions ? Object.values(rowActions).flatMap((value) => labelsFromList(value)) : [];
+  return Array.from(new Set([...flat, ...grouped]));
 }
 
 function fieldDetails(node: ComponentNode): string[] {
@@ -191,7 +194,7 @@ function detailBlocksForNode(node: ComponentNode): DetailBlock[] {
   const floatItems = floatButtonContents(node);
   if (floatItems.length) blocks.push({ title: '显示内容', items: floatItems });
   const fields = fieldDetails(node);
-  if (fields.length) blocks.push({ title: formTypes.has(node.type) ? '表单字段' : '字段', items: fields });
+  if (fields.length) blocks.push({ title: node.type === 'SearchBar' ? '搜索条件' : formTypes.has(node.type) ? '表单字段' : '字段', items: fields });
   const columns = columnLabels(node);
   if (columns.length) blocks.push({ title: tableTypes.has(node.type) || detailTypes.has(node.type) ? '显示字段' : '字段', items: columns });
   const rowSamples = rowValues(node);
@@ -200,6 +203,7 @@ function detailBlocksForNode(node: ComponentNode): DetailBlock[] {
   if (actions.length) blocks.push({ title: '行内按钮', items: actions });
   const buttons = buttonTexts(node);
   if (buttons.length) blocks.push({ title: '按钮', items: buttons.map((item) => `点击“${item}”`) });
+  if (node.type === 'SearchBar') blocks.push({ title: '操作结果', items: ['点击搜索后，系统按已填写条件筛选列表内容。', '点击重置后，系统清空搜索条件并恢复列表内容。'] });
   blocks.push(...optionDetails(node));
   blocks.push(...modalDetails(node));
   const emptyText = text(node.props.emptyText);

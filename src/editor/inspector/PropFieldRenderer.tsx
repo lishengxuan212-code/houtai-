@@ -1,4 +1,4 @@
-import { Form, Input, Radio } from 'antd';
+import { Form, Radio } from 'antd';
 import type { JsonRecord, JsonValue } from '../../domain/types';
 import type { FieldConfig } from '../../domain/types';
 import { getValueAtPropPath, setValueAtPropPath } from '../../domain/operations/componentPropertyOperations';
@@ -13,6 +13,7 @@ import { NumberPropEditor } from './editors/NumberPropEditor';
 import { SelectPropEditor } from './editors/SelectPropEditor';
 import { SwitchPropEditor } from './editors/SwitchPropEditor';
 import { TableColumnsEditor } from './editors/TableColumnsEditor';
+import { TableActionBuilder } from './TableActionBuilder';
 import { MenuItemsEditor, type MenuItemConfig } from './editors/MenuItemsEditor';
 import { TableRowsEditor } from './editors/TableRowsEditor';
 import { asRows } from './editors/tableRowsValue';
@@ -72,7 +73,7 @@ export function PropFieldRenderer({ field, propsValue, nodePropsValue = propsVal
       {editor === 'stepsItems' ? <CollectionItemsEditor value={Array.isArray(value) ? value : []} addLabel="添加步骤" onChange={(next) => updateField(propsValue, field, next as JsonValue, onChange)} /> : null}
       {editor === 'treeData' ? <CollectionItemsEditor value={Array.isArray(value) ? (value as CollectionItemConfig[]) : []} addLabel="添加项目" onChange={(next) => updateField(propsValue, field, next as JsonValue, onChange)} /> : null}
       {editor === 'formFields' ? <FormFieldsEditor value={Array.isArray(value) ? (value as FieldConfig[]) : []} onChange={(next) => updateField(propsValue, field, next as JsonValue, onChange)} /> : null}
-      {editor === 'actions' ? <Input.TextArea rows={3} value={Array.isArray(value) ? value.join('\n') : ''} onChange={(event) => updateField(propsValue, field, event.target.value.split('\n').map((item) => item.trim()).filter(Boolean), onChange)} /> : null}
+      {editor === 'actions' ? <TableActionBuilder actions={Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []} onChange={(next) => updateField(propsValue, field, next, onChange)} /> : null}
       {editor === 'dataSource' || editor === 'layout' ? <TextPropEditor value={asString(value)} onChange={(next) => updateField(propsValue, field, next, onChange)} /> : null}
     </Form.Item>
   );

@@ -2,12 +2,13 @@ import { Button, Space, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { JsonRecord } from '../../domain/types';
 import type { NodeRendererProps } from './rendererTypes';
-import { asArray, asString } from './primitive';
+import { asString } from './primitive';
 
 type ColumnConfig = { key: string; title: string };
 type TableColumnConfig = ColumnConfig & { actionItems?: string[] };
 
 const ACTION_COLUMN_TITLES = new Set(['操作', 'actions', 'Actions']);
+const MIN_COLUMN_WIDTH = 140;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -106,12 +107,20 @@ function exampleRows(columns: ColumnConfig[], count = 3): JsonRecord[] {
   }));
 }
 
+function firstRows(...values: unknown[]): JsonRecord[] {
+  for (const value of values) {
+    if (Array.isArray(value) && value.length) return value.filter(isRecord) as JsonRecord[];
+  }
+  return [];
+}
+
 export function TableRenderer({ node, context }: NodeRendererProps) {
   const dataSourceId = asString(node.props.dataSourceId, '');
-  const propRows = asArray<JsonRecord>(node.data?.rows ?? node.props.rows ?? node.props.data, []);
+  const propRows = firstRows(node.data?.rows, node.props.rows, node.props.data);
   const dataRows = propRows.length ? propRows : (context.getData?.(dataSourceId) ?? []);
   const rawColumns = tableColumns(normalizeColumns(node.props.columns), normalizeActionItems(node.props.actions), node.props.rowActions);
   const rows = dataRows.length ? dataRows : exampleRows(rawColumns);
+  const tableMinWidth = Math.max(rawColumns.length * MIN_COLUMN_WIDTH, 360);
 
   const columns: ColumnsType<JsonRecord> = rawColumns.map((column) => ({
     title:
@@ -120,6 +129,9 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
         : column.title,
     dataIndex: column.key,
     key: column.key,
+    width: MIN_COLUMN_WIDTH,
+    onHeaderCell: () => ({ style: { minWidth: MIN_COLUMN_WIDTH, whiteSpace: 'nowrap' } }),
+    onCell: () => ({ style: { minWidth: MIN_COLUMN_WIDTH } }),
     render: (value, row, index) =>
       column.actionItems?.length ? (
         <Space>
@@ -127,7 +139,7 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
             <Button
               key={action}
               type="link"
-              danger={action.includes('删') || action.includes('删除')}
+              danger={action.includes('删') || action.toLowerCase().includes('delete')}
               onClick={(event) => {
                 event.stopPropagation();
                 if (context.mode === 'edit') {
@@ -143,21 +155,25 @@ export function TableRenderer({ node, context }: NodeRendererProps) {
         </Space>
       ) : (
         (context.mode === 'edit'
-          ? (context.inlineEdit?.tableCellText?.({ node, rowIndex: index, columnKey: column.key, value: readableCell(value) }) ?? readableCell(value))
+          ? (context.inlineEdit?.tableCellText?.({ node, rowIndex: index, columnKey: column.key, value: readableCell(value), row }) ?? readableCell(value))
           : readableCell(value))
       ),
   }));
 
   return (
-    <Table
-      size="small"
-      rowKey={(row) => String(row.id ?? row.orderNo ?? Math.random())}
-      dataSource={rows}
-      columns={columns}
-      pagination={{ pageSize: 5 }}
-      onRow={(row, rowIndex) => ({
-        onDoubleClick: () => context.dispatch?.({ componentId: node.id, event: 'rowClick', payload: { row, rowIndex: rowIndex ?? 0 } }),
-      })}
-    />
+    <div data-testid={`table-scroll-${node.id}`} style={{ overflowX: 'auto', width: '100%' }}>
+      <Table
+        size="small"
+        rowKey={(row) => String(row.id ?? row.orderNo ?? Math.random())}
+        dataSource={rows}
+        columns={columns}
+        pagination={{ pageSize: 5 }}
+        scroll={{ x: tableMinWidth }}
+        style={{ minWidth: tableMinWidth }}
+        onRow={(row, rowIndex) => ({
+          onDoubleClick: () => context.dispatch?.({ componentId: node.id, event: 'rowClick', payload: { row, rowIndex: rowIndex ?? 0 } }),
+        })}
+      />
+    </div>
   );
 }

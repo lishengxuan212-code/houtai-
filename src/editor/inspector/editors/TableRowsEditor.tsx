@@ -22,7 +22,7 @@ function updateCell(rows: JsonRecord[], index: number, key: string, value: strin
   return rows.map((row, rowIndex) => (rowIndex === index ? { ...row, [key]: value } : row));
 }
 
-export function TableRowsEditor({ value, columns, onChange }: { value: JsonRecord[]; columns: ColumnLike[]; onChange: (value: JsonRecord[]) => void }) {
+export function TableRowsEditor({ value, columns, onChange }: { value: JsonRecord[]; columns: Array<ColumnLike | string>; onChange: (value: JsonRecord[]) => void }) {
   const rows = Array.isArray(value) ? value : [];
   const visibleColumns = normalizeRowColumns(columns);
   return (

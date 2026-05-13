@@ -21,8 +21,6 @@ const topBarGroupKeys = new Set(['typography', 'color', 'fill', 'background', 'b
 const topBarPropPaths = new Set([
   'props.text',
   'props.title',
-  'props.label',
-  'props.placeholder',
   'props.fontFamily',
   'props.fontWeight',
   'props.fontSize',

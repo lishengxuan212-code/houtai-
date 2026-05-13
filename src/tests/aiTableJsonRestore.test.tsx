@@ -92,9 +92,9 @@ describe('AI table JSON restore flow', () => {
 
     render(<TableRenderer node={tableNode!} context={{ mode: 'edit', getData: () => [] }} />);
 
-    expect(screen.getByText('活动ID')).toBeInTheDocument();
-    expect(screen.getByText('发布状态')).toBeInTheDocument();
-    expect(screen.getByText('获奖信息')).toBeInTheDocument();
+    expect(screen.getAllByText('活动ID').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('发布状态').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('获奖信息').length).toBeGreaterThan(0);
     expect(screen.getAllByText('详情').length).toBeGreaterThan(0);
     expect(screen.getAllByText('复制链接').length).toBeGreaterThan(0);
     expect(screen.getAllByText('已发布').length).toBeGreaterThan(0);

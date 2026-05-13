@@ -77,4 +77,32 @@ describe('table rows editor', () => {
 
     expect(node.data?.rows).toEqual([{ VIP类型: 'SVIP', 变更时长: '+15 分钟' }]);
   });
+  it('creates ProTable rows from generated props data', () => {
+    const node = createNode('pro.ProTable', {
+      columns: [{ key: 'orderNo', title: 'Order No' }],
+      data: [{ orderNo: 'A001' }],
+    });
+
+    expect(node.data?.rows).toEqual([{ orderNo: 'A001' }]);
+  });
+
+  it('creates ProForm content fields from generated props fields', () => {
+    const node = createNode('pro.ProForm', {
+      fields: [{ key: 'activityName', label: 'Activity Name', type: 'text', required: true }],
+    });
+
+    expect(node.content?.fields).toEqual([{ key: 'activityName', label: 'Activity Name', type: 'text', required: true }]);
+  });
+
+  it('creates modal content from generated body and footer buttons', () => {
+    const node = createNode('Modal', {
+      content: 'Confirm submit?',
+      footerButtons: [{ key: 'confirm', label: 'Confirm', value: 'confirm' }],
+    });
+
+    expect(node.content).toMatchObject({
+      body: 'Confirm submit?',
+      footerButtons: [{ key: 'confirm', label: 'Confirm', value: 'confirm' }],
+    });
+  });
 });

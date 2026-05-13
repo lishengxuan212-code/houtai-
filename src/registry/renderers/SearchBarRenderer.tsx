@@ -1,11 +1,23 @@
-import { Button, Form, Input, Select, Space } from 'antd';
+import { Button, DatePicker, Form, Input, InputNumber, Select, Space } from 'antd';
 import type { FieldConfig } from '../../domain/types';
 import type { NodeRendererProps } from './rendererTypes';
-import { asArray } from './primitive';
+import { asArray, asString } from './primitive';
+
+function SearchFieldControl({ field }: { field: FieldConfig }) {
+  if (field.type === 'select' || field.type === 'status') {
+    return <Select style={{ width: 150 }} options={(field.options ?? []).map((item) => ({ label: item, value: item }))} />;
+  }
+  if (field.type === 'number' || field.type === 'money') return <InputNumber style={{ width: 150 }} placeholder={field.label} />;
+  if (field.type === 'date') return <DatePicker style={{ width: 150 }} />;
+  return <Input placeholder={`请输入${field.label}`} />;
+}
 
 export function SearchBarRenderer({ node, context }: NodeRendererProps) {
   const [form] = Form.useForm();
   const fields = asArray<FieldConfig>(node.props.fields, []);
+  const submitText = asString(node.props.submitText, '搜索');
+  const resetText = asString(node.props.resetText, '重置');
+
   return (
     <Form
       form={form}
@@ -26,18 +38,14 @@ export function SearchBarRenderer({ node, context }: NodeRendererProps) {
             : field.label;
         return (
           <Form.Item key={field.key} name={field.key} label={label}>
-            {field.type === 'select' ? (
-              <Select style={{ width: 150 }} options={(field.options ?? []).map((item) => ({ label: item, value: item }))} />
-            ) : (
-              <Input placeholder={`请输入${field.label}`} />
-            )}
+            <SearchFieldControl field={field} />
           </Form.Item>
         );
       })}
       <Form.Item>
         <Space>
           <Button type="primary" htmlType="submit">
-            搜索
+            {submitText}
           </Button>
           <Button
             onClick={() => {
@@ -45,7 +53,7 @@ export function SearchBarRenderer({ node, context }: NodeRendererProps) {
               context.dispatch?.({ componentId: node.id, event: 'search', payload: { values: {} } });
             }}
           >
-            重置
+            {resetText}
           </Button>
         </Space>
       </Form.Item>

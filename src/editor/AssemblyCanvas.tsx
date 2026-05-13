@@ -14,7 +14,7 @@ import { useProjectStore } from '../store/projectStore';
 import { clampCanvasCornerRadius, dragCanvasCornerRadius, numberProp as radiusNumberProp } from './canvasRadius';
 import { fitCanvasImageSize, imageInputToCanvasNode } from './canvasImagePlacement';
 import { resizeCanvasRect } from './canvasResize';
-import { InlineTextEditor, patchArrayItemLabel, patchScalarProp, patchTableCell } from './inlineEdit';
+import { InlineTextEditor, patchScopedArrayItemLabel, patchScopedText, patchTableCell } from './inlineEdit';
 import { incrementMetric, measureMetric } from './performance/performanceMetrics';
 import { SaveTemplateModal } from './templates/SaveTemplateModal';
 
@@ -167,39 +167,43 @@ function useRendererContext(page: Page | undefined, project: ReturnType<typeof u
       text: ({ node, propKey, value }) => (
         <InlineTextEditor
           value={value}
-          onCommit={(nextValue) =>
-            page
-              ? apply({ type: 'updateNodeProps', pageId: page.id, nodeId: node.id, props: patchScalarProp(node.props, propKey, nextValue) })
-              : undefined
-          }
+          onCommit={(nextValue) => {
+            if (!page) return;
+            const next = patchScopedText(node, propKey, nextValue);
+            if (next.scope === 'content') {
+              apply({ type: 'updateNodeContent', pageId: page.id, nodeId: node.id, content: next.patch });
+              return;
+            }
+            apply({ type: 'updateNodeProps', pageId: page.id, nodeId: node.id, props: next.patch });
+          }}
         />
       ),
       arrayItemText: ({ node, arrayProp, itemKey, labelKey, value }) => (
         <InlineTextEditor
           value={value}
-          onCommit={(nextValue) =>
-            page
-              ? apply({
-                  type: 'updateNodeProps',
-                  pageId: page.id,
-                  nodeId: node.id,
-                  props: patchArrayItemLabel(node.props, arrayProp, itemKey, labelKey, nextValue),
-                })
-              : undefined
-          }
+          onCommit={(nextValue) => {
+            if (!page) return;
+            const next = patchScopedArrayItemLabel(node, arrayProp, itemKey, labelKey, nextValue);
+            if (next.scope === 'content') {
+              apply({ type: 'updateNodeContent', pageId: page.id, nodeId: node.id, content: next.patch });
+              return;
+            }
+            apply({ type: 'updateNodeProps', pageId: page.id, nodeId: node.id, props: next.patch });
+          }}
         />
       ),
-      tableCellText: ({ node, rowIndex, columnKey, value }) => (
+      tableCellText: ({ node, rowIndex, columnKey, value, row }) => (
         <InlineTextEditor
           value={value}
           onCommit={(nextValue) => {
             if (!page) return;
+            const sourceRows = Array.isArray(node.data?.rows) && node.data.rows.length ? node.data.rows : Array.isArray(node.props.rows) && node.props.rows.length ? node.props.rows : node.props.data;
             const hasDataRows = Array.isArray(node.data?.rows);
             if (hasDataRows) {
-              apply({ type: 'updateNodeData', pageId: page.id, nodeId: node.id, data: { ...(node.data ?? {}), rows: patchTableCell(node.data?.rows, rowIndex, columnKey, nextValue) } });
+              apply({ type: 'updateNodeData', pageId: page.id, nodeId: node.id, data: { ...(node.data ?? {}), rows: patchTableCell(sourceRows, rowIndex, columnKey, nextValue, row) } });
               return;
             }
-            apply({ type: 'updateNodeProps', pageId: page.id, nodeId: node.id, props: { rows: patchTableCell(node.props.rows ?? node.props.data, rowIndex, columnKey, nextValue) } });
+            apply({ type: 'updateNodeProps', pageId: page.id, nodeId: node.id, props: { rows: patchTableCell(sourceRows, rowIndex, columnKey, nextValue, row) } });
           }}
         />
       ),

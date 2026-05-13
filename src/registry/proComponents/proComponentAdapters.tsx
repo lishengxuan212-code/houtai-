@@ -12,7 +12,7 @@ type ProColumn = {
 };
 
 function columnsFromProps(node: NodeRendererProps['node'], context: NodeRendererProps['context']): ColumnsType<JsonRecord> {
-  return asArray<ProColumn>(node.props.columns, []).map((column) => ({
+  const columns: ColumnsType<JsonRecord> = asArray<ProColumn>(node.props.columns, []).map((column) => ({
     title:
       context.mode === 'edit'
         ? (context.inlineEdit?.arrayItemText({ node, arrayProp: 'columns', itemKey: column.key, labelKey: 'title', value: column.title }) ?? column.title)
@@ -21,11 +21,41 @@ function columnsFromProps(node: NodeRendererProps['node'], context: NodeRenderer
     key: column.key,
     render: (value) => String(value ?? ''),
   }));
+  const actions = asArray<string>(node.props.actions, []).filter(Boolean);
+  if (!actions.length) return columns;
+  return [
+    ...columns,
+    {
+      title: '操作',
+      key: 'actions',
+      render: (_value, row) => (
+        <Space>
+          {actions.map((action) => (
+            <Button
+              key={action}
+              type="link"
+              danger={action.includes('删') || action.toLowerCase().includes('delete')}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (context.mode === 'edit') {
+                  context.selectInteractionTarget?.(`${node.id}:${action}`);
+                  return;
+                }
+                context.dispatch?.({ componentId: `${node.id}:${action}`, event: 'click', payload: { row, action } });
+              }}
+            >
+              {action}
+            </Button>
+          ))}
+        </Space>
+      ),
+    },
+  ];
 }
 
 function rowsFromNode(node: NodeRendererProps['node'], context: NodeRendererProps['context']): JsonRecord[] {
   const dataSourceId = asString(node.props.dataSourceId, '');
-  const configuredRows = asArray<JsonRecord>(node.data?.rows ?? node.props.data, []);
+  const configuredRows = asArray<JsonRecord>(node.data?.rows ?? node.props.rows ?? node.props.data, []);
   return configuredRows.length ? configuredRows : (context.getData?.(dataSourceId) ?? []);
 }
 

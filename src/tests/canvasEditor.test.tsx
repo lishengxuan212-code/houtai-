@@ -342,6 +342,44 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(screen.getByRole('textbox')).toHaveValue('Create order');
   });
 
+  it('saves double-click table cell edits back to project data', async () => {
+    replaceProject({
+      ...baseProject,
+      pages: [
+        {
+          ...baseProject.pages[0]!,
+          nodes: {
+            ...baseProject.pages[0]!.nodes,
+            root: {
+              ...baseProject.pages[0]!.nodes.root!,
+              children: ['table_one'],
+            },
+            table_one: {
+              id: 'table_one',
+              type: 'Table',
+              name: 'Activity table',
+              props: { columns: ['活动名称'] },
+              data: { rows: [{ id: 'row_1', 活动名称: '春节活动' }] },
+              canvas: { x: 64, y: 72, width: 520, height: 260, zIndex: 3, parentFrameId: 'frame_page_canvas_default' },
+            },
+          },
+        },
+      ],
+    });
+
+    render(<AssemblyCanvas />);
+
+    fireEvent.doubleClick(await screen.findByText('春节活动'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '元宵活动' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+
+    await waitFor(() => {
+      const rows = useProjectStore.getState().project.pages[0]!.nodes.table_one?.data?.rows;
+      const row = Array.isArray(rows) ? rows[0] : undefined;
+      expect(row).toMatchObject({ 活动名称: '元宵活动' });
+    });
+  });
+
   it('copies and pastes the selected canvas node with a new id', async () => {
     render(<AssemblyCanvas />);
 

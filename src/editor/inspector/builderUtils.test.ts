@@ -25,10 +25,10 @@ describe('inspector builder utils', () => {
     expect(added[1]).toMatchObject({ key: 'amount', title: 'Amount' });
 
     const moved = moveListItem(updated, 1, 'up');
-    expect(moved.map((column) => column.key)).toEqual(['amount', 'orderNo', 'column3']);
+    expect(moved.map((column) => (typeof column === 'string' ? column : column.key))).toEqual(['amount', 'orderNo', 'column3']);
 
     const deleted = deleteListItem(moved, 1);
-    expect(deleted.map((column) => column.key)).toEqual(['amount', 'column3']);
+    expect(deleted.map((column) => (typeof column === 'string' ? column : column.key))).toEqual(['amount', 'column3']);
   });
 
   it('adds, updates, deletes, and reorders form fields while preserving field details', () => {

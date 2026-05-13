@@ -689,6 +689,37 @@
   align-items: center;
 }
 
+.inspector-table-column-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.inspector-column-field {
+  display: grid;
+  gap: 4px;
+  grid-column: 1 / 2;
+  min-width: 0;
+}
+
+.inspector-column-field span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.inspector-column-actions {
+  display: grid;
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  gap: 4px;
+  align-content: center;
+}
+
 .inspector-field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

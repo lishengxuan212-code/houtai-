@@ -1,4 +1,4 @@
-import { Button, Form, Input, InputNumber, Select, Space } from 'antd';
+import { Button, DatePicker, Form, Input, InputNumber, Select, Space } from 'antd';
 import { useEffect } from 'react';
 import type { FieldConfig } from '../../domain/types';
 import type { NodeRendererProps } from './rendererTypes';
@@ -36,6 +36,8 @@ export function FormRenderer({ node, context }: NodeRendererProps) {
           <Form.Item key={field.key} name={field.key} label={label} rules={[{ required: Boolean(field.required), message: `请输入${fallbackLabel}` }]}>
             {field.type === 'number' || field.type === 'money' ? (
               <InputNumber style={{ width: '100%' }} />
+            ) : field.type === 'date' ? (
+              <DatePicker style={{ width: '100%' }} />
             ) : field.type === 'select' || field.type === 'status' ? (
               <Select options={(field.options ?? []).map((item) => ({ label: item, value: item }))} />
             ) : (
@@ -49,7 +51,7 @@ export function FormRenderer({ node, context }: NodeRendererProps) {
           <Button type="primary" htmlType="submit">
             {asString(node.props.submitText, '提交')}
           </Button>
-          <Button onClick={() => form.resetFields()}>重置</Button>
+          <Button onClick={() => form.resetFields()}>{asString(node.props.resetText, '重置')}</Button>
         </Space>
       </Form.Item>
     </Form>

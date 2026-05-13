@@ -25,7 +25,7 @@ export type RendererContext = {
   inlineEdit?: {
     text: (args: { node: ComponentNode; propKey: string; value: string }) => ReactNode;
     arrayItemText: (args: { node: ComponentNode; arrayProp: string; itemKey: string; labelKey: string; value: string }) => ReactNode;
-    tableCellText?: (args: { node: ComponentNode; rowIndex: number; columnKey: string; value: string }) => ReactNode;
+    tableCellText?: (args: { node: ComponentNode; rowIndex: number; columnKey: string; value: string; row: JsonRecord }) => ReactNode;
   };
 };
 

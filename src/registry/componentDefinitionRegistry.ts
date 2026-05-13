@@ -162,6 +162,87 @@ function appendCommonAppearance(definition: ComponentDefinition): PropSchemaGrou
   ];
 }
 
+const formLikeTypesWithLabel = new Set([
+  'AutoComplete',
+  'Cascader',
+  'Checkbox',
+  'DatePicker',
+  'Input',
+  'InputNumber',
+  'ListBox',
+  'Mentions',
+  'MuiAutocomplete',
+  'MuiCheckbox',
+  'MuiRadioGroup',
+  'MuiSelect',
+  'MuiSwitch',
+  'MuiTextField',
+  'Radio',
+  'Select',
+  'Switch',
+  'TextareaAutosize',
+  'TimePicker',
+  'TreeSelect',
+]);
+
+const optionLikeTypes = new Set(['AutoComplete', 'Cascader', 'ListBox', 'MuiAutocomplete', 'MuiRadioGroup', 'MuiSelect', 'Radio', 'Select', 'TreeSelect']);
+const placeholderLikeTypes = new Set(['AutoComplete', 'Cascader', 'DatePicker', 'Input', 'InputNumber', 'MuiAutocomplete', 'MuiSelect', 'MuiTextField', 'Select', 'TextareaAutosize', 'TimePicker', 'TreeSelect']);
+
+function appendMissingFields(groups: PropSchemaGroup[], group: PropSchemaGroup): PropSchemaGroup[] {
+  const existing = new Set(groups.flatMap((schemaGroup) => schemaGroup.fields.map((schemaField) => schemaField.path)));
+  const fields = group.fields.filter((schemaField) => !existing.has(schemaField.path));
+  if (fields.length === 0) return groups;
+  const existingGroupIndex = groups.findIndex((schemaGroup) => schemaGroup.key === group.key || schemaGroup.id === group.id);
+  if (existingGroupIndex === -1) return [...groups, { ...group, fields }];
+  return groups.map((schemaGroup, index) => (index === existingGroupIndex ? { ...schemaGroup, fields: [...schemaGroup.fields, ...fields] } : schemaGroup));
+}
+
+function withJsonFieldCompatibility(definition: ComponentDefinition): ComponentDefinition {
+  if (!formLikeTypesWithLabel.has(definition.type)) return definition;
+
+  const fields: PropSchemaField[] = [
+    field('props.label', '标签', 'text'),
+    field('props.fieldKey', '字段 key', 'text'),
+  ];
+  if (placeholderLikeTypes.has(definition.type)) fields.push(field('props.placeholder', '占位文案', 'text'));
+
+  let next: ComponentDefinition = {
+    ...definition,
+    propSchema: appendMissingFields(definition.propSchema, {
+      key: 'props',
+      id: 'props',
+      title: '属性',
+      fields,
+    }),
+  };
+
+  if (optionLikeTypes.has(definition.type) && !next.contentSchema?.some((group) => group.fields.some((schemaField) => schemaField.path === 'content.options'))) {
+    next = {
+      ...next,
+      defaultProps: {
+        ...next.defaultProps,
+        options: next.defaultProps.options ?? ['选项一', '选项二'],
+      },
+      defaultContent: {
+        ...(next.defaultContent ?? {}),
+        options: next.defaultContent?.options ?? next.defaultProps.options ?? ['选项一', '选项二'],
+      },
+      propSchema: next.propSchema.map((group) => ({
+        ...group,
+        fields: group.fields.filter((schemaField) => schemaField.path !== 'props.options'),
+      })),
+      contentSchema: appendMissingFields(next.contentSchema ?? [], {
+        key: 'options',
+        id: 'options',
+        title: '选项',
+        fields: [field('content.options', '选项', 'options')],
+      }),
+    };
+  }
+
+  return next;
+}
+
 function editorForManifestProp(key: string, control: 'text' | 'textarea' | 'number' | 'boolean' | 'select' | 'json'): PropSchemaField['editor'] {
   if (control === 'boolean') return 'switch';
   if (control !== 'json') return control;
@@ -553,20 +634,21 @@ function withS21Schemas(definition: ComponentDefinition): ComponentDefinition {
     return { ...definition, defaultProps: { ...definition.defaultProps }, defaultData: { rows: definition.defaultProps.rows ?? [] }, dataSchema: [tableRowsGroup] };
   }
   if (definition.type === 'Select' || definition.type === 'Radio' || definition.type === 'Checkbox' || definition.type === 'ListBox') {
+    const options = definition.defaultProps.options ?? [
+      { id: 'option1', key: 'option1', label: 'Option 1', value: 'option1' },
+      { id: 'option2', key: 'option2', label: 'Option 2', value: 'option2' },
+    ];
     return {
       ...definition,
       defaultProps: {
         ...definition.defaultProps,
-        options: definition.defaultProps.options ?? [
-          { id: 'option1', key: 'option1', label: 'Option 1', value: 'option1' },
-          { id: 'option2', key: 'option2', label: 'Option 2', value: 'option2' },
-        ],
+        options,
       },
       propSchema: definition.propSchema.map((group) => ({
         ...group,
         fields: group.fields.filter((schemaField) => schemaField.path !== 'props.options'),
       })),
-      defaultContent: { options: definition.defaultProps.options ?? [] },
+      defaultContent: { options },
       contentSchema: [{ key: 'options', id: 'options', title: 'Options', fields: [field('content.options', 'Options', 'options')] }],
     };
   }
@@ -669,7 +751,7 @@ function withS21Schemas(definition: ComponentDefinition): ComponentDefinition {
   return definition;
 }
 
-const definitions = [...new Map([...normalizedDefinitions, ...heavyComponentDefinitions, ...floatButtonDefinitions].map((definition) => [definition.type, withGenerationCapabilities(withS21Schemas(definition))])).values()];
+const definitions = [...new Map([...normalizedDefinitions, ...heavyComponentDefinitions, ...floatButtonDefinitions].map((definition) => [definition.type, withGenerationCapabilities(withJsonFieldCompatibility(withS21Schemas(definition)))] as const)).values()];
 const registry = new Map(definitions.map((definition) => [definition.type, definition]));
 
 export function listComponentDefinitions(): ComponentDefinition[] {

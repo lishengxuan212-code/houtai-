@@ -1,9 +1,11 @@
 import type { FieldConfig } from '../../domain/types';
 
-export type TableColumnConfig = {
+export type TableColumnObjectConfig = {
   key: string;
   title: string;
 };
+
+export type TableColumnConfig = string | TableColumnObjectConfig;
 
 type Direction = 'up' | 'down';
 
@@ -11,12 +13,17 @@ function nextKey(prefix: string, count: number): string {
   return `${prefix}${count + 1}`;
 }
 
+function isObjectColumn(column: TableColumnConfig): column is TableColumnObjectConfig {
+  return typeof column !== 'string';
+}
+
 export function addTableColumn(columns: TableColumnConfig[]): TableColumnConfig[] {
+  if (columns.every((column) => typeof column === 'string')) return [...columns, '新列'];
   return [...columns, { key: nextKey('column', columns.length), title: 'New Column' }];
 }
 
 export function updateTableColumn(columns: TableColumnConfig[], key: string, patch: Partial<TableColumnConfig>): TableColumnConfig[] {
-  return columns.map((column) => (column.key === key ? { ...column, ...patch } : { ...column }));
+  return columns.map((column) => (isObjectColumn(column) && column.key === key ? { ...column, ...(patch as Partial<TableColumnObjectConfig>) } : column));
 }
 
 export function addFormField(fields: FieldConfig[]): FieldConfig[] {
