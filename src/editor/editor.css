@@ -549,6 +549,54 @@
   justify-content: flex-start;
 }
 
+.canvas-layout-assist-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.canvas-alignment-guide {
+  position: absolute;
+  background: #ff4d4f;
+  box-shadow: 0 0 0 1px rgba(255, 77, 79, 0.16);
+}
+
+.canvas-alignment-guide.vertical {
+  width: 1px;
+}
+
+.canvas-alignment-guide.horizontal {
+  height: 1px;
+}
+
+.canvas-spacing-hint {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0958d9;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.canvas-spacing-hint.horizontal {
+  height: 1px;
+  border-top: 1px dashed #1677ff;
+}
+
+.canvas-spacing-hint.vertical {
+  width: 1px;
+  border-left: 1px dashed #1677ff;
+  writing-mode: vertical-rl;
+}
+
+.canvas-spacing-hint span {
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #e6f4ff;
+}
+
 .component-preview-table,
 .component-preview-form,
 .component-preview-input,

@@ -45,6 +45,14 @@ export function getComponentDisplayName(componentType: string, fallback: string)
   return state.nameOverrides?.[componentType] || fallback;
 }
 
+export function getActiveComponentLibraryGroupLabel(): string | undefined {
+  return state.ui.activeLibraryGroupLabel;
+}
+
+export function saveActiveComponentLibraryGroupLabel(groupLabel: string): void {
+  persist({ ...state, ui: { ...state.ui, activeLibraryGroupLabel: groupLabel } });
+}
+
 export function saveComponentNameOverride(componentType: string, name: string): void {
   const nextName = name.trim();
   const nameOverrides = { ...(state.nameOverrides ?? {}) };
@@ -198,7 +206,7 @@ export function reloadComponentLibraryState(): void {
 
 export function clearComponentLibraryState(): void {
   clearComponentLibraryStorage();
-  state = { overrides: {}, nameOverrides: {}, canvasOverrides: {}, presets: [], recent: [] };
+  state = { overrides: {}, nameOverrides: {}, canvasOverrides: {}, presets: [], recent: [], ui: {} };
 }
 
 if (typeof window !== 'undefined') {

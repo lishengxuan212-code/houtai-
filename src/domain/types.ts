@@ -195,6 +195,7 @@ export type Project = {
   name: string;
   description?: string;
   businessType?: BusinessType;
+  prdMarkdown?: string;
   pages: Page[];
   dataSources: DataSource[];
   variables: Variable[];
@@ -235,6 +236,7 @@ export type Operation =
   | { type: 'ungroupNode'; pageId: string; groupNodeId: string }
   | { type: 'alignNodes'; pageId: string; nodeIds: string[]; alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' }
   | { type: 'distributeNodes'; pageId: string; nodeIds: string[]; direction: 'horizontal' | 'vertical' }
+  | { type: 'matchNodeCanvasSize'; pageId: string; nodeIds: string[]; match: 'width' | 'height' | 'both' }
   | { type: 'updateNodeCanvas'; pageId: string; nodeId: string; canvas: Partial<NodeCanvasConfig> }
   | { type: 'assignNodeToFrame'; pageId: string; nodeId: string; frameId: string }
   | { type: 'setNodeCanvasLocked'; pageId: string; nodeId: string; locked: boolean }

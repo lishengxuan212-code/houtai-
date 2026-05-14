@@ -479,6 +479,40 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(nodes.button_three?.canvas?.y).toBe(260);
   });
 
+  it('matches selected canvas node dimensions through store commands', async () => {
+    const project: Project = structuredClone(baseProject);
+    project.pages[0]!.nodes.button_two = {
+      id: 'button_two',
+      type: 'Button',
+      name: 'Secondary action',
+      props: { text: 'Archive', variant: 'default', danger: false },
+      canvas: { x: 260, y: 160, width: 260, height: 64, zIndex: 5, parentFrameId: 'frame_page_canvas_default' },
+    };
+    project.pages[0]!.nodes.root!.children = ['button_one', 'button_two'];
+    replaceProject(project);
+
+    const store = useProjectStore.getState();
+    store.selectNodes(['button_one', 'button_two']);
+    store.matchSelectedNodesSize('both');
+
+    const nodes = useProjectStore.getState().project.pages[0]!.nodes;
+    expect(nodes.button_two?.canvas?.width).toBe(180);
+    expect(nodes.button_two?.canvas?.height).toBe(48);
+  });
+
+  it('nudges selected canvas nodes with arrow keys', async () => {
+    render(<AssemblyCanvas />);
+    const store = useProjectStore.getState();
+    store.selectNodes(['button_one']);
+
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    fireEvent.keyDown(document, { key: 'ArrowDown', shiftKey: true });
+
+    const canvas = useProjectStore.getState().project.pages[0]!.nodes.button_one?.canvas;
+    expect(canvas?.x).toBe(65);
+    expect(canvas?.y).toBe(82);
+  });
+
   it('opens a node context menu and updates z-order actions', async () => {
     render(<AssemblyCanvas />);
 
@@ -547,10 +581,12 @@ describe('AssemblyCanvas page-frame editor', () => {
     fireEvent.click(screen.getByLabelText('context-lock'));
     expect(useProjectStore.getState().project.pages[0]!.nodes[pastedId]?.canvas?.locked).toBe(true);
 
-    fireEvent.contextMenu(screen.getByTestId(`canvas-node-${pastedId}`));
-    fireEvent.click(screen.getByLabelText('context-save-template'));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    fireEvent.click(screen.getAllByLabelText('Close')[0]!);
+	fireEvent.contextMenu(screen.getByTestId(`canvas-node-${pastedId}`));
+	fireEvent.click(screen.getByLabelText('context-save-template'));
+	expect(screen.getByRole('dialog')).toBeInTheDocument();
+	fireEvent.click(screen.getByRole('button', { name: '保存模板' }));
+	await waitFor(() => expect(listUserTemplates().length).toBeGreaterThan(0));
+	expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
     fireEvent.contextMenu(screen.getByTestId(`canvas-node-${pastedId}`));
     fireEvent.click(screen.getByLabelText('context-hide'));
@@ -782,13 +818,17 @@ describe('AssemblyCanvas page-frame editor', () => {
     const canvas = (await screen.findByTestId('canvas-page-frame')).closest('.assembly-canvas') as HTMLElement;
     const beforeProject = useProjectStore.getState().project;
 
-    fireEvent.wheel(canvas, { deltaY: -120, ctrlKey: true });
+    const zoomInEvent = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -120, ctrlKey: true });
+    canvas.dispatchEvent(zoomInEvent);
 
+    expect(zoomInEvent.defaultPrevented).toBe(true);
     expect(useCanvasViewportStore.getState().zoom).toBe(1.08);
     expect(useProjectStore.getState().project).toBe(beforeProject);
 
-    fireEvent.wheel(canvas, { deltaY: 120, metaKey: true });
+    const zoomOutEvent = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120, metaKey: true });
+    canvas.dispatchEvent(zoomOutEvent);
 
+    expect(zoomOutEvent.defaultPrevented).toBe(true);
     expect(useCanvasViewportStore.getState().zoom).toBe(1);
     expect(useProjectStore.getState().project).toBe(beforeProject);
   });
@@ -805,6 +845,25 @@ describe('AssemblyCanvas page-frame editor', () => {
     expect(canvas.scrollLeft).toBe(360);
     expect(canvas.scrollTop).toBe(240);
     expect(useProjectStore.getState().project).toBe(beforeProject);
+  });
+
+  it('fits the active page frame into the middle canvas viewport on first display', async () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function width(this: HTMLElement) {
+      return this.classList.contains('assembly-canvas') ? 800 : 0;
+    });
+    const clientHeightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function height(this: HTMLElement) {
+      return this.classList.contains('assembly-canvas') ? 600 : 0;
+    });
+
+    render(<AssemblyCanvas />);
+
+    const canvas = (await screen.findByTestId('canvas-page-frame')).closest('.assembly-canvas') as HTMLElement;
+
+    await waitFor(() => expect(useCanvasViewportStore.getState().zoom).toBe(0.59));
+    expect(canvas.scrollLeft).toBe(48);
+    expect(canvas.scrollTop).toBe(19);
+    clientWidthSpy.mockRestore();
+    clientHeightSpy.mockRestore();
   });
 
   it('suppresses Space pan and Home canvas shortcuts while editing form controls', async () => {

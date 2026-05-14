@@ -186,6 +186,8 @@ const formLikeTypesWithLabel = new Set([
 ]);
 
 const optionLikeTypes = new Set(['AutoComplete', 'Cascader', 'ListBox', 'MuiAutocomplete', 'MuiRadioGroup', 'MuiSelect', 'Radio', 'Select', 'TreeSelect']);
+const treeOptionLikeTypes = new Set(['Cascader']);
+const treeSelectLikeTypes = new Set(['TreeSelect']);
 const placeholderLikeTypes = new Set(['AutoComplete', 'Cascader', 'DatePicker', 'Input', 'InputNumber', 'MuiAutocomplete', 'MuiSelect', 'MuiTextField', 'Select', 'TextareaAutosize', 'TimePicker', 'TreeSelect']);
 
 function appendMissingFields(groups: PropSchemaGroup[], group: PropSchemaGroup): PropSchemaGroup[] {
@@ -216,7 +218,34 @@ function withJsonFieldCompatibility(definition: ComponentDefinition): ComponentD
     }),
   };
 
-  if (optionLikeTypes.has(definition.type) && !next.contentSchema?.some((group) => group.fields.some((schemaField) => schemaField.path === 'content.options'))) {
+  if (treeSelectLikeTypes.has(definition.type) && !next.contentSchema?.some((group) => group.fields.some((schemaField) => schemaField.path === 'content.treeData'))) {
+    const treeData = next.defaultProps.treeData ?? next.defaultProps.options ?? [
+      { id: 'option1', key: 'option1', label: '选项一', value: 'option1' },
+      { id: 'option2', key: 'option2', label: '选项二', value: 'option2' },
+    ];
+    next = {
+      ...next,
+      defaultProps: {
+        ...next.defaultProps,
+        treeData,
+      },
+      defaultContent: {
+        ...(next.defaultContent ?? {}),
+        treeData: next.defaultContent?.treeData ?? treeData,
+      },
+      propSchema: next.propSchema.map((group) => ({
+        ...group,
+        fields: group.fields.filter((schemaField) => schemaField.path !== 'props.treeData' && schemaField.path !== 'props.options'),
+      })),
+      contentSchema: appendMissingFields(next.contentSchema ?? [], {
+        key: 'treeData',
+        id: 'treeData',
+        title: '选项',
+        fields: [field('content.treeData', '选项', 'treeData')],
+      }),
+    };
+  } else if (optionLikeTypes.has(definition.type) && !next.contentSchema?.some((group) => group.fields.some((schemaField) => schemaField.path === 'content.options'))) {
+    const editor = treeOptionLikeTypes.has(definition.type) ? 'treeData' : 'options';
     next = {
       ...next,
       defaultProps: {
@@ -235,7 +264,7 @@ function withJsonFieldCompatibility(definition: ComponentDefinition): ComponentD
         key: 'options',
         id: 'options',
         title: '选项',
-        fields: [field('content.options', '选项', 'options')],
+        fields: [field('content.options', '选项', editor)],
       }),
     };
   }
@@ -668,6 +697,25 @@ function withS21Schemas(definition: ComponentDefinition): ComponentDefinition {
       })),
       defaultContent: { items: definition.defaultProps.items ?? [] },
       contentSchema: [{ key: 'items', id: 'items', title: 'Menu tree', fields: [field('content.items', 'Menu items', 'menuItems')] }],
+    };
+  }
+  if (definition.type === 'Breadcrumb') {
+    const items = definition.defaultProps.items ?? [
+      { id: 'home', key: 'home', label: '首页' },
+      { id: 'current', key: 'current', label: definition.defaultProps.title ?? '当前页面' },
+    ];
+    return {
+      ...definition,
+      defaultProps: {
+        ...definition.defaultProps,
+        items,
+      },
+      propSchema: definition.propSchema.map((group) => ({
+        ...group,
+        fields: group.fields.filter((schemaField) => schemaField.path !== 'props.items'),
+      })),
+      defaultContent: { items },
+      contentSchema: [{ key: 'items', id: 'items', title: '面包屑', fields: [field('content.items', '面包屑项', 'menuItems')] }],
     };
   }
   if (definition.type === 'Tabs') {

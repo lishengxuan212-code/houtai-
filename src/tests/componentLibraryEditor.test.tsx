@@ -3,10 +3,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ComponentLibraryPanel } from '../editor/components/ComponentLibraryPanel';
 import { ComponentCard } from '../editor/components/ComponentCard';
 import { ComponentSystemPanel } from '../editor/components/ComponentSystemPanel';
+import { TemplateLibraryPanel } from '../editor/templates/TemplateLibraryPanel';
 import { antdLibraryManifest } from '../registry/antdManifest';
 import { createNode } from '../registry/createNode';
 import { createComponentPreset } from '../registry/componentPresetRegistry';
 import { clearComponentLibraryState, getComponentDefaultOverrides, restoreComponentDefaultProps, saveComponentDefaultProps, saveComponentNameOverride, saveComponentPreset } from '../store/componentLibraryStore';
+import { useProjectStore } from '../store/projectStore';
 
 describe('component library editor state', () => {
   it('keeps the library as icon-only cards without the old detail property editor', () => {
@@ -57,6 +59,29 @@ describe('component library editor state', () => {
       expect(screen.getAllByText('文本框').length).toBeGreaterThan(0);
       expect(screen.getAllByText('手风琴').length).toBeGreaterThan(0);
     });
+  });
+
+  it('keeps the selected component category after the library panel remounts', () => {
+    const { unmount } = render(<ComponentLibraryPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: '数据展示' }));
+    expect(screen.getByRole('button', { name: '数据展示' })).toHaveClass('ant-btn-primary');
+
+    unmount();
+    render(<ComponentLibraryPanel />);
+
+    expect(screen.getByRole('button', { name: '数据展示' })).toHaveClass('ant-btn-primary');
+    expect(screen.getAllByText(/徽标|统计|金额/).length).toBeGreaterThan(0);
+  });
+
+  it('shows why template save cannot proceed when no component is selected', async () => {
+    useProjectStore.getState().selectNode(useProjectStore.getState().project.pages[0]!.rootNodeId);
+    render(<TemplateLibraryPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: '保存模板' }));
+    fireEvent.click(screen.getAllByRole('button', { name: '保存模板' }).at(-1)!);
+
+    expect(await screen.findByText('请选择要保存为模板的组件')).toBeInTheDocument();
   });
 
   it('adds and drags components from the whole Axure-style tile', () => {

@@ -2,6 +2,7 @@ import { Button, Empty, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import type { LibraryComponentDescriptor } from '../../registry/antdManifest';
 import { antdLibraryManifest, filterLibraryComponents } from '../../registry/antdManifest';
+import { getActiveComponentLibraryGroupLabel, saveActiveComponentLibraryGroupLabel } from '../../store/componentLibraryStore';
 import { useProjectStore } from '../../store/projectStore';
 import { measureMetric } from '../performance/performanceMetrics';
 import { ComponentCard } from './ComponentCard';
@@ -34,7 +35,10 @@ function groupComponents(group: LibraryGroup, components: LibraryComponentDescri
 export function ComponentLibraryPanel() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [groupLabel, setGroupLabel] = useState(libraryGroups[0]!.label);
+  const [groupLabel, setGroupLabel] = useState(() => {
+    const saved = getActiveComponentLibraryGroupLabel();
+    return saved && libraryGroups.some((group) => group.label === saved) ? saved : libraryGroups[0]!.label;
+  });
   const [refreshKey, setRefreshKey] = useState(0);
   const addComponent = useProjectStore((state) => state.addComponent);
   const allComponents = useMemo(
@@ -69,7 +73,16 @@ export function ComponentLibraryPanel() {
           <Typography.Text type="secondary">组件分类</Typography.Text>
           <div className="component-category-buttons">
             {libraryGroups.map((group) => (
-              <Button key={group.label} block aria-label={group.label} type={group.label === groupLabel ? 'primary' : 'text'} onClick={() => setGroupLabel(group.label)}>
+              <Button
+                key={group.label}
+                block
+                aria-label={group.label}
+                type={group.label === groupLabel ? 'primary' : 'text'}
+                onClick={() => {
+                  setGroupLabel(group.label);
+                  saveActiveComponentLibraryGroupLabel(group.label);
+                }}
+              >
                 {group.label}
               </Button>
             ))}

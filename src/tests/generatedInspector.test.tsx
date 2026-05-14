@@ -92,4 +92,28 @@ describe('GeneratedInspector', () => {
     expect(screen.getByDisplayValue('*Status')).toBeInTheDocument();
     expect(updateProps).toHaveBeenCalledWith(expect.objectContaining({ fieldKey: 'status' }));
   });
+
+  it.each([
+    ['Cascader', 'content.options'],
+    ['Checkbox', 'content.options'],
+    ['Radio', 'content.options'],
+    ['TreeSelect', 'content.treeData'],
+    ['Breadcrumb', 'content.items'],
+  ])('edits structured content for %s through the inspector', (type, path) => {
+    const node: ComponentNode = {
+      id: `${type}_1`,
+      type,
+      name: type,
+      props: { label: type, fieldKey: 'field' },
+      content: path === 'content.treeData' ? { treeData: [{ id: 'a', key: 'a', label: 'A', value: 'a' }] } : path === 'content.items' ? { items: [{ id: 'a', key: 'a', label: 'A' }] } : { options: [{ id: 'a', key: 'a', label: 'A', value: 'a' }] },
+    };
+    const updateContent = vi.fn();
+
+    render(<GeneratedInspector node={node} definition={getComponentDefinition(type)!} updateProps={vi.fn()} updateContent={updateContent} hideTopBarProps />);
+
+    fireEvent.change(screen.getAllByDisplayValue('A')[0]!, { target: { value: 'Edited' } });
+
+    const key = path.split('.')[1]!;
+    expect(updateContent).toHaveBeenCalledWith(expect.objectContaining({ [key]: [expect.objectContaining({ label: 'Edited' })] }));
+  });
 });

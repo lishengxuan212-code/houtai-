@@ -2,7 +2,6 @@ import { Tabs } from 'antd';
 import { useWorkbenchUiStore } from '../../store/editorStores';
 import { DataPanel } from '../DataPanel';
 import { InteractionPanel } from '../InteractionPanel';
-import { ExportPanel } from '../ExportPanel';
 import { PropertyPanel } from '../PropertyPanel';
 
 export function RightInspectorPanel() {
@@ -12,7 +11,6 @@ export function RightInspectorPanel() {
     { key: 'props', label: '属性', children: <PropertyPanel showState={false} /> },
     { key: 'interactions', label: '交互', children: <InteractionPanel /> },
     { key: 'data', label: '数据', children: <DataPanel /> },
-    { key: 'advanced', label: '导出', children: <ExportPanel /> },
   ];
   const activeKey = items.some((item) => item.key === activeTab) ? activeTab : 'props';
   return (

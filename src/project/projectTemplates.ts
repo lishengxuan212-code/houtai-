@@ -1,5 +1,8 @@
 import type { BusinessType, Project } from '../domain/types';
 import { initialProject } from '../store/initialProject';
+import { createPageFromTemplate, insertTemplateIntoPage } from '../templates/templateOperations';
+import { getUserTemplate, listUserTemplates } from '../templates/templateStorage';
+import type { UserTemplate } from '../templates/userTemplateTypes';
 
 export type ProjectTemplateKind = 'blank' | 'builtin' | 'saved';
 
@@ -81,6 +84,9 @@ export function createBlankProject(input: CreateProjectInput): Project {
 }
 
 export function createBuiltinProject(input: CreateProjectInput): Project {
+  const savedTemplate = resolveSavedTemplate(input.templateSourceId);
+  if (savedTemplate) return createProjectFromSavedTemplate(input, savedTemplate);
+
   const now = nowIso();
   const project: Project = {
     ...structuredClone(initialProject),
@@ -98,4 +104,56 @@ export function createBuiltinProject(input: CreateProjectInput): Project {
     }
   }
   return project;
+}
+
+function resolveSavedTemplate(templateSourceId: string | undefined): UserTemplate | undefined {
+  if (templateSourceId) return getUserTemplate(templateSourceId);
+  return listUserTemplates()[0];
+}
+
+function createProjectFromSavedTemplate(input: CreateProjectInput, template: UserTemplate): Project {
+  const blank = createBlankProject(input);
+  const page = blank.pages[0];
+  const frameId = page?.frames?.[0]?.id;
+  if (!page) return blank;
+
+  if (template.type === 'page') {
+    const withTemplatePage = createPageFromTemplate(blank, template);
+    const createdPage = withTemplatePage.pages.at(-1);
+    if (!createdPage) return blank;
+    return {
+      ...withTemplatePage,
+      name: input.name,
+      businessType: input.businessType,
+      pages: [withSizedFrames(createdPage, input)],
+      updatedAt: nowIso(),
+    };
+  }
+
+  const inserted = insertTemplateIntoPage(blank, page.id, page.rootNodeId, template, frameId);
+  return {
+    ...inserted,
+    name: input.name,
+    businessType: input.businessType,
+    pages: inserted.pages.map((item, index) => (index === 0 ? withSizedFrames(item, input) : item)),
+    updatedAt: nowIso(),
+  };
+}
+
+function withSizedFrames(page: Project['pages'][number], input: CreateProjectInput): Project['pages'][number] {
+  const frames = ensureFirstFrameSize(page.frames, input);
+  return frames ? { ...page, frames } : { ...page };
+}
+
+function ensureFirstFrameSize(frames: Project['pages'][number]['frames'], input: CreateProjectInput) {
+  if (!frames?.length) return frames;
+  return frames.map((frame, index) =>
+    index === 0
+      ? {
+          ...frame,
+          width: input.canvasWidth ?? frame.width,
+          height: input.canvasHeight ?? frame.height,
+        }
+      : frame,
+  );
 }

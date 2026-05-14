@@ -22,6 +22,7 @@ export type LayerZIndexPatch = {
 };
 export type CanvasAlignment = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
 export type DistributionDirection = 'horizontal' | 'vertical';
+export type CanvasSizeMatch = 'width' | 'height' | 'both';
 
 const DEFAULT_CANVAS: NodeCanvasConfig = {
   x: 0,
@@ -284,4 +285,20 @@ export function distributeNodesByCanvas(nodes: ComponentNode[], direction: Distr
   }
 
   return indexed.map(({ item, index, canvas }) => withCanvas(item, nextCanvases.get(index) ?? canvas));
+}
+
+export function matchNodesCanvasSize(nodes: ComponentNode[], match: CanvasSizeMatch): ComponentNode[] {
+  const unlocked = nodes.map((item) => ({ item, canvas: canvasFor(item) })).filter(({ canvas }) => !canvas.locked);
+  const source = unlocked[0]?.canvas;
+  if (!source) return nodes.map((item) => ensureNodeCanvas(item));
+
+  return nodes.map((item) => {
+    const canvas = canvasFor(item);
+    if (canvas.locked) return withCanvas(item, canvas);
+    return withCanvas(item, {
+      ...canvas,
+      width: match === 'width' || match === 'both' ? source.width : canvas.width,
+      height: match === 'height' || match === 'both' ? source.height : canvas.height,
+    });
+  });
 }

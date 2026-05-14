@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createProjectFromTemplate, deleteProject, listProjects, openProject, renameProject, saveProjectRecord } from '../project/ProjectManager';
 import { initialProject } from '../store/initialProject';
+import { createTemplateFromSelectedNodes, saveUserTemplate } from '../templates/templateOperations';
 
 const storage = new Map<string, string>();
 
@@ -54,5 +55,36 @@ describe('ProjectManager', () => {
 
     saveProjectRecord(project);
     expect(listProjects()[0]?.canvasSize).toEqual({ width: 1440, height: 900 });
+  });
+
+  it('creates built-in-template projects from saved user templates', () => {
+    const source = structuredClone(initialProject);
+    const page = source.pages[0]!;
+    const node = page.nodes.button_add_order!;
+    const frameId = page.frames?.[0]?.id;
+    node.canvas = { x: 80, y: 96, width: 120, height: 32, zIndex: 7, ...(frameId ? { parentFrameId: frameId } : {}) };
+    const template = createTemplateFromSelectedNodes(source, page.id, ['button_add_order'], {
+      name: 'Saved Button Template',
+      type: 'component',
+      category: 'Common',
+      includeProps: true,
+      includeContent: true,
+      includeData: false,
+      includeInternalInteractions: false,
+    });
+    saveUserTemplate(template);
+
+    const project = createProjectFromTemplate({
+      name: 'Created From Saved Template',
+      businessType: 'blank',
+      template: 'builtin',
+      templateSourceId: template.id,
+      canvasWidth: 1440,
+      canvasHeight: 900,
+    });
+
+    expect(project.businessType).toBe('blank');
+    expect(project.pages[0]?.frames?.[0]).toMatchObject({ width: 1440, height: 900 });
+    expect(Object.values(project.pages[0]!.nodes).some((item) => item.type === 'Button' && item.props.text === node.props.text && item.canvas?.x === 80)).toBe(true);
   });
 });

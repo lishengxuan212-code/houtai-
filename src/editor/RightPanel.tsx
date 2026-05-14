@@ -2,7 +2,6 @@ import { Button, Tabs, Tooltip } from 'antd';
 import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { AiPanel } from './AiPanel';
 import { DataPanel } from './DataPanel';
-import { ExportPanel } from './ExportPanel';
 import { InteractionPanel } from './InteractionPanel';
 import { PropertyPanel } from './PropertyPanel';
 
@@ -37,7 +36,6 @@ export function RightPanel({ collapsed, onToggle }: RightPanelProps) {
           { key: 'interactions', label: '交互', children: <InteractionPanel /> },
           { key: 'data', label: '数据', children: <DataPanel /> },
           { key: 'ai', label: 'AI', children: <AiPanel /> },
-          { key: 'export', label: '导出', children: <ExportPanel /> },
         ]}
       />
     </aside>

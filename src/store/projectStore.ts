@@ -11,6 +11,7 @@ import {
   sendNodeToBackByZIndex,
   sortNodesByZIndex,
   type CanvasAlignment,
+  type CanvasSizeMatch,
   type DistributionDirection,
 } from '../domain/canvas';
 import type { CreateProjectOptions } from '../project/ProjectManager';
@@ -34,6 +35,7 @@ type ProjectStore = {
   dirty: boolean;
   apply: (operation: Operation) => void;
   renameProject: (name: string) => void;
+  updatePrdMarkdown: (markdown: string) => void;
   selectPage: (pageId: string) => void;
   selectFrame: (frameId: string | undefined) => void;
   renameCurrentPage: (name: string) => void;
@@ -57,6 +59,7 @@ type ProjectStore = {
   redo: () => void;
   alignSelectedNodes: (alignment: CanvasAlignment) => void;
   distributeSelectedNodes: (direction: DistributionDirection) => void;
+  matchSelectedNodesSize: (match: CanvasSizeMatch) => void;
   bringSelectedToFront: () => void;
   sendSelectedToBack: () => void;
   moveSelectedForward: () => void;
@@ -166,6 +169,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       set((state) => {
         const next = persist({ ...state.project, name, updatedAt: new Date().toISOString() });
         return { project: next };
+      }),
+    updatePrdMarkdown: (markdown) =>
+      set((state) => {
+        const next = persist({ ...state.project, prdMarkdown: markdown, updatedAt: new Date().toISOString() });
+        return { project: next, dirty: true };
       }),
     selectPage: (pageId) =>
       set((state) => {
@@ -401,6 +409,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       const nodeIds = state.selectedNodeIds.filter((nodeId) => page?.nodes[nodeId] && nodeId !== page.rootNodeId);
       if (nodeIds.length < 3) return;
       state.apply({ type: 'distributeNodes', pageId: state.currentPageId, nodeIds, direction });
+    },
+    matchSelectedNodesSize: (match) => {
+      const state = get();
+      const page = getPage(state.project, state.currentPageId);
+      const nodeIds = state.selectedNodeIds.filter((nodeId) => page?.nodes[nodeId]?.canvas && nodeId !== page.rootNodeId);
+      if (nodeIds.length < 2) return;
+      state.apply({ type: 'matchNodeCanvasSize', pageId: state.currentPageId, nodeIds, match });
     },
     bringSelectedToFront: () => {
       const state = get();

@@ -306,14 +306,14 @@ function numberName(index: number): string {
   return ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][index - 1] ?? String(index);
 }
 
-function renderModule(project: Project, page: Page, pageNodes: ComponentNode[], node: ComponentNode, index: number): string {
+function renderModule(project: Project, page: Page, pageNodes: ComponentNode[], node: ComponentNode, index: number, includeInteractions = false): string {
   const info = moduleInfo(node, pageNodes);
   const lines: string[] = [`#### 模块${numberName(index)}：${info.name}`, '', `类型：${info.type}`, '', '用途：', info.description, ''];
   for (const block of collectDetailBlocks(page, node)) {
     lines.push(`${block.title}：`, bullet(block.items), '');
   }
   const related = interactionsForNode(project.interactions, node);
-  if (related.length) {
+  if (includeInteractions && related.length) {
     lines.push('操作说明：');
     for (const interaction of related) {
       const source = interaction.trigger.componentId.includes(':') ? `点击“${interaction.trigger.componentId.split(':').slice(1).join(':')}”` : `触发“${info.name}”`;
@@ -322,10 +322,6 @@ function renderModule(project: Project, page: Page, pageNodes: ComponentNode[], 
     lines.push('');
   }
   return lines.join('\n');
-}
-
-function renderPages(project: Project): string {
-  return ['| 页面 | 主要用途 |', '|---|---|', ...project.pages.map((page) => `| ${page.name} | ${page.purpose ?? '用于完成后台业务操作'} |`)].join('\n');
 }
 
 function parentByNodeId(page: Page): Map<string, string> {
@@ -405,56 +401,63 @@ function renderFrameContent(project: Project, page: Page, scopedNodes: Component
   return lines.join('\n');
 }
 
-function renderPageModules(project: Project): string {
-  const sections: string[] = [];
-  project.pages.forEach((page, pageIndex) => {
-    sections.push(`### 3.${pageIndex + 1} ${page.name}`);
-    if (page.frames?.length) {
-      for (const frame of [...page.frames].sort((left, right) => left.zIndex - right.zIndex)) {
-        sections.push(`#### 可见页面：${frame.name}`);
-        sections.push(renderFrameContent(project, page, nodesForFrame(page, frame)));
-      }
-      return;
-    }
-    sections.push(renderFrameContent(project, page, nodesForFrame(page)));
+function interactionsForPage(project: Project, page: Page): Interaction[] {
+  return project.interactions.filter((interaction) => {
+    const sourceId = interaction.trigger.componentId.split(':')[0] ?? interaction.trigger.componentId;
+    return Boolean(page.nodes[sourceId]);
   });
-  return sections.join('\n');
 }
 
-function renderInteractionSummary(project: Project): string {
-  const rows = project.interactions.flatMap((interaction) =>
+function renderPageInteractions(project: Project, page: Page): string {
+  const rows = interactionsForPage(project, page).flatMap((interaction) =>
     interaction.actions.map((action) => {
       const triggerLabel = interaction.trigger.componentId.includes(':') ? `点击“${interaction.trigger.componentId.split(':').slice(1).join(':')}”` : interaction.name;
       return `| ${triggerLabel} | ${actionText(project, action)} |`;
     }),
   );
-  return ['| 操作 | 结果 |', '|---|---|', ...(rows.length ? rows : ['| 暂未配置 | 暂无 |'])].join('\n');
+  return ['| 用户操作 | 页面结果 |', '|---|---|', ...(rows.length ? rows : ['| 暂未配置 | 当前页面仅展示静态内容。 |'])].join('\n');
+}
+
+function renderPageLogic(project: Project, page: Page): string {
+  const lines: string[] = [];
+  const interactions = interactionsForPage(project, page);
+  for (const interaction of interactions) {
+    const triggerLabel = interaction.trigger.componentId.includes(':') ? `点击“${interaction.trigger.componentId.split(':').slice(1).join(':')}”` : interaction.name;
+    const results = interaction.actions.map((action) => actionText(project, action)).join('');
+    lines.push(`用户${triggerLabel}后，系统${results}`);
+  }
+  const scopedNodes = page.frames?.length ? page.frames.flatMap((frame) => nodesForFrame(page, frame)) : nodesForFrame(page);
+  const emptyStates = scopedNodes.flatMap((node) => {
+    const emptyText = text(node.props.emptyText);
+    return emptyText ? [`${readableNodeName(node)}无可展示内容时，页面显示“${emptyText}”。`] : [];
+  });
+  const successStates = scopedNodes.flatMap((node) => {
+    const successMessage = text(node.props.successMessage);
+    return successMessage ? [`${readableNodeName(node)}处理成功后，页面显示“${successMessage}”。`] : [];
+  });
+  lines.push(...emptyStates, ...successStates);
+  if (scopedNodes.some((node) => fieldDetails(node).some((field) => field.includes('必填')))) {
+    lines.push('用户提交表单时，系统校验必填项；未填写完整时提示用户补充。');
+  }
+  return bullet(lines.length ? Array.from(new Set(lines)) : ['当前页面无额外业务判断。']);
+}
+
+function renderPage(project: Project, page: Page): string {
+  const lines = [`## ${page.name}`, '', '### 显示层', ''];
+  if (page.frames?.length) {
+    for (const frame of [...page.frames].sort((left, right) => left.zIndex - right.zIndex)) {
+      lines.push(`页面：${frame.name}`, '', renderFrameContent(project, page, nodesForFrame(page, frame)));
+    }
+  } else {
+    lines.push(renderFrameContent(project, page, nodesForFrame(page)));
+  }
+  lines.push('### 交互层', '', renderPageInteractions(project, page), '', '### 逻辑层', '', renderPageLogic(project, page), '');
+  return lines.join('\n');
 }
 
 export function exportPlainPrd(project: Project): string {
   const markdown = `${sectionTitle(1, `${project.name} PRD`)}
 
-${sectionTitle(2, '1. 项目说明')}
-
-${project.description || `该后台用于支持${project.name}相关业务的查询、处理和跟进。`}
-
-${sectionTitle(2, '2. 页面清单')}
-
-${renderPages(project)}
-
-${sectionTitle(2, '3. 页面与模块说明')}
-
-${renderPageModules(project)}
-
-${sectionTitle(2, '4. 主要交互说明')}
-
-${renderInteractionSummary(project)}
-
-${sectionTitle(2, '5. 异常和提示')}
-
-- 如果必填内容为空，页面提示用户补充。
-- 如果执行删除等高风险操作，需要先让用户确认。
-- 如果提交成功，页面显示成功提示。
-- 如果没有可展示内容，页面显示空状态提示。`;
+${project.pages.map((page) => renderPage(project, page)).join('\n')}`;
   return sanitizePlainPrd(markdown);
 }

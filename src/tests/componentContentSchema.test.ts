@@ -23,8 +23,11 @@ describe('component content/data/slot schema', () => {
 
   it('uses visual collection editors for options and structured navigation content', () => {
     expect(getComponentDefinition('Select')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.options' && field.editor === 'options'))).toBe(true);
+    expect(getComponentDefinition('Cascader')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.options' && field.editor === 'treeData'))).toBe(true);
     expect(getComponentDefinition('Radio')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.options' && field.editor === 'options'))).toBe(true);
     expect(getComponentDefinition('Checkbox')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.options' && field.editor === 'options'))).toBe(true);
+    expect(getComponentDefinition('TreeSelect')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.treeData' && field.editor === 'treeData'))).toBe(true);
+    expect(getComponentDefinition('Breadcrumb')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.items' && field.editor === 'menuItems'))).toBe(true);
     expect(getComponentDefinition('Menu')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.items' && field.editor === 'menuItems'))).toBe(true);
     expect(getComponentDefinition('Tabs')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.items' && field.editor === 'tabsItems'))).toBe(true);
     expect(getComponentDefinition('Steps')?.contentSchema?.some((group) => group.fields.some((field) => field.path === 'content.items' && field.editor === 'stepsItems'))).toBe(true);

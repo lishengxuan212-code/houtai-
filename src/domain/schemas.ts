@@ -227,6 +227,7 @@ export const ProjectSchema = z.object({
   name: z.string(),
   description: z.string().optional(),
   businessType: z.enum(['blank', 'ecommerce', 'crm', 'approval', 'cms', 'user_permission', 'dashboard', 'custom']).optional(),
+  prdMarkdown: z.string().optional(),
   pages: z.array(PageSchema),
   dataSources: z.array(DataSourceSchema),
   variables: z.array(VariableSchema),

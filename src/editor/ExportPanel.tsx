@@ -6,6 +6,7 @@ import { useProjectStore } from '../store/projectStore';
 export function ExportPanel() {
   const project = useProjectStore((state) => state.project);
   const [markdown, setMarkdown] = useState('');
+
   return (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
       <Button onClick={() => setMarkdown(exportMarkdownPrd(project))}>生成 PRD</Button>

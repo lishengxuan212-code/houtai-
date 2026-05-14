@@ -6,11 +6,18 @@ describe('plain PRD export', () => {
   it('exports business-readable pages, modules, fields, and interaction outcomes', () => {
     const markdown = exportPlainPrd(initialProject);
     expect(markdown).toContain('# 电商订单后台 PRD');
-    expect(markdown).toContain('## 2. 页面清单');
+    expect(markdown).toContain('## 订单管理');
+    expect(markdown).toContain('### 显示层');
+    expect(markdown).toContain('### 交互层');
+    expect(markdown).toContain('### 逻辑层');
     expect(markdown).toContain('模块一：订单搜索区');
     expect(markdown).toContain('订单金额');
     expect(markdown).toContain('点击');
     expect(markdown).toContain('提示');
+    expect(markdown).not.toContain('项目说明');
+    expect(markdown).not.toContain('页面清单');
+    expect(markdown).not.toContain('页面与模块说明');
+    expect(markdown).not.toContain('主要交互说明');
   });
 
   it('does not expose technical vocabulary', () => {

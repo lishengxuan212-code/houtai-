@@ -128,8 +128,9 @@ describe('canvas semantic plain PRD export', () => {
   it('groups content by page frame and prefers semantic module metadata', () => {
     const prd = exportPlainPrd(canvasSemanticProject());
 
-    expect(prd).toContain('### 3.1 客户管理');
-    expect(prd).toContain('#### 可见页面：客户列表页');
+    expect(prd).toContain('## 客户管理');
+    expect(prd).toContain('### 显示层');
+    expect(prd).toContain('页面：客户列表页');
     expect(prd).toContain('模块一：客户筛选');
     expect(prd).toContain('类型：搜索区');
     expect(prd).toContain('用于按客户名称和等级筛选列表。');

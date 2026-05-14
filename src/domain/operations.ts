@@ -6,6 +6,7 @@ import {
   createPageFrame,
   distributeNodesByCanvas,
   ensureNodeCanvas,
+  matchNodesCanvasSize,
   reorderLayerStackByZIndex,
   setNodeCanvasHidden,
   setNodeCanvasLocked,
@@ -207,6 +208,15 @@ export function applyOperation(project: Project, operation: Operation): Project 
       if (!page) return draft;
       const nodes = operation.nodeIds.map((nodeId) => page.nodes[nodeId]).filter((node): node is NonNullable<typeof node> => Boolean(node));
       distributeNodesByCanvas(nodes, operation.direction).forEach((node) => {
+        page.nodes[node.id] = node;
+      });
+      return draft;
+    }
+    case 'matchNodeCanvasSize': {
+      const page = getPage(draft, operation.pageId);
+      if (!page) return draft;
+      const nodes = operation.nodeIds.map((nodeId) => page.nodes[nodeId]).filter((node): node is NonNullable<typeof node> => Boolean(node));
+      matchNodesCanvasSize(nodes, operation.match).forEach((node) => {
         page.nodes[node.id] = node;
       });
       return draft;

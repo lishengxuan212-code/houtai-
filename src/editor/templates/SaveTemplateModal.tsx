@@ -1,5 +1,5 @@
-import { Button, Checkbox, Form, Input, Modal, Radio, Select } from 'antd';
-import { useEffect } from 'react';
+import { Alert, Button, Checkbox, Form, Input, Modal, Radio, Select } from 'antd';
+import { useEffect, useState } from 'react';
 import { recordRecentLibraryItem } from '../../store/componentLibraryStore';
 import { useProjectStore } from '../../store/projectStore';
 import { createTemplateFromSelectedNodes, saveUserTemplate } from '../../templates/templateOperations';
@@ -26,7 +26,7 @@ function editableTemplateType(type: UserTemplateType | undefined): UserTemplateT
   return type === 'page' ? 'page' : 'component';
 }
 
-export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: boolean; onClose: () => void; templateToUpdate?: UserTemplate }) {
+export function SaveTemplateModal({ open, onClose, templateToUpdate, selectedNodeIdsOverride }: { open: boolean; onClose: () => void; templateToUpdate?: UserTemplate; selectedNodeIdsOverride?: string[] }) {
   const project = useProjectStore((state) => state.project);
   const currentPageId = useProjectStore((state) => state.currentPageId);
   const currentFrameId = useProjectStore((state) => state.currentFrameId);
@@ -34,6 +34,7 @@ export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: b
   const selectedNodeIds = useProjectStore((state) => state.selectedNodeIds);
   const [form] = Form.useForm<TemplateFormValues>();
   const category = Form.useWatch('category', form);
+  const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
     if (!open) return;
@@ -53,17 +54,39 @@ export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: b
     });
   }, [form, open, templateToUpdate]);
 
+  const handleClose = () => {
+    setError(undefined);
+    onClose();
+  };
+
   return (
-    <Modal title={templateToUpdate ? '更新模板' : '保存为模板'} open={open} onCancel={onClose} footer={null}>
+    <Modal
+      title={templateToUpdate ? '更新模板' : '保存为模板'}
+      open={open}
+      onCancel={handleClose}
+      afterOpenChange={(visible) => {
+        if (visible) setError(undefined);
+      }}
+      footer={null}
+    >
       <Form
         form={form}
         layout="vertical"
         onFinish={(values) => {
           const page = project.pages.find((item) => item.id === currentPageId);
-          const selectedIds = selectedNodeIds.length ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : [];
-          if (!page || (values.type !== 'page' && selectedIds.filter((nodeId) => nodeId !== page.rootNodeId).length === 0)) return;
+          const selectedIds = selectedNodeIdsOverride?.length ? selectedNodeIdsOverride : selectedNodeIds.length ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : [];
+          const templateType = templateToUpdate?.type === 'page' ? values.type : 'component';
+          if (!page) {
+            setError('当前页面不存在，无法保存模板');
+            return;
+          }
+          if (selectedIds.filter((nodeId) => nodeId !== page.rootNodeId).length === 0) {
+            setError('请选择要保存为模板的组件');
+            return;
+          }
+          setError(undefined);
           const resolvedCategory = values.category === '自定义' ? values.customCategory?.trim() || '自定义' : values.category;
-          const template = createTemplateFromSelectedNodes(project, currentPageId, selectedIds, { ...values, category: resolvedCategory, ...(currentFrameId ? { frameId: currentFrameId } : {}) });
+          const template = createTemplateFromSelectedNodes(project, currentPageId, selectedIds, { ...values, type: templateType, category: resolvedCategory, ...(currentFrameId ? { frameId: currentFrameId } : {}) });
           saveUserTemplate(
             templateToUpdate
               ? {
@@ -82,12 +105,13 @@ export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: b
             description: template.description,
             usedAt: template.updatedAt,
           });
-          onClose();
+          handleClose();
         }}
       >
         <Form.Item name="name" label="模板名称" rules={[{ required: true }]}>
           <Input />
         </Form.Item>
+        {error ? <Alert showIcon type="warning" message={error} style={{ marginBottom: 12 }} /> : null}
         <Form.Item name="type" label="模板类型">
           <Radio.Group
             options={[
@@ -123,7 +147,7 @@ export function SaveTemplateModal({ open, onClose, templateToUpdate }: { open: b
           <Checkbox>保留跳转、变量等外部引用</Checkbox>
         </Form.Item>
         <div className="modal-actions">
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={handleClose}>取消</Button>
           <Button type="primary" htmlType="submit">{templateToUpdate ? '更新模板' : '保存模板'}</Button>
         </div>
       </Form>

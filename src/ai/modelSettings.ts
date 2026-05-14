@@ -16,6 +16,7 @@ export type AiModelSettings = {
 
 export const AI_MODEL_SETTINGS_STORAGE_KEY = 'admin-prototype-studio.ai-model-settings.v1';
 export const AI_MODEL_DEFAULT_SETTINGS_STORAGE_KEY = 'admin-prototype-studio.ai-model-default-settings.v1';
+export const PRD_AI_REVIEW_DEFAULT_SETTINGS_STORAGE_KEY = 'admin-prototype-studio.prd-ai-review-default-settings.v1';
 
 export const defaultAiModelSettings: AiModelSettings = {
   visionStructure: {
@@ -89,6 +90,26 @@ export function loadAiModelDefaultSettings(): AiModelSettings {
 export function saveAiModelDefaultSettings(settings: AiModelSettings) {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(AI_MODEL_DEFAULT_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+}
+
+export function loadPrdAiReviewDefaultSettings(): AiModelSettings {
+  if (typeof localStorage === 'undefined') return defaultAiModelSettings;
+  try {
+    const raw = localStorage.getItem(PRD_AI_REVIEW_DEFAULT_SETTINGS_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : undefined;
+    if (!isRecord(parsed)) return loadAiModelDefaultSettings();
+    return {
+      visionStructure: mergeConfig('visionStructure', parsed.visionStructure),
+      visionEmbedding: mergeConfig('visionEmbedding', parsed.visionEmbedding),
+    };
+  } catch {
+    return loadAiModelDefaultSettings();
+  }
+}
+
+export function savePrdAiReviewDefaultSettings(settings: AiModelSettings) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(PRD_AI_REVIEW_DEFAULT_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }
 
 export function isModelConfigured(config: AiModelConfig) {

@@ -33,6 +33,9 @@ export type ComponentLibraryState = {
   canvasOverrides: Record<string, { width: number; height: number }>;
   presets: ComponentPreset[];
   recent: RecentLibraryItem[];
+  ui: {
+    activeLibraryGroupLabel?: string;
+  };
 };
 
 const emptyState: ComponentLibraryState = {
@@ -41,6 +44,7 @@ const emptyState: ComponentLibraryState = {
   canvasOverrides: {},
   presets: [],
   recent: [],
+  ui: {},
 };
 
 function canUseStorage(): boolean {
@@ -58,6 +62,7 @@ export function loadComponentLibraryState(): ComponentLibraryState {
       nameOverrides: parsed.nameOverrides ?? {},
       canvasOverrides: parsed.canvasOverrides ?? {},
       presets: parsed.presets ?? [],
+      ui: parsed.ui ?? {},
       recent: (parsed.recent ?? []).map((item) => ({
         ...item,
         ...(item.favorite && !item.favoriteAt ? { favoriteAt: item.usedAt } : {}),

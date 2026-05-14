@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   AI_MODEL_DEFAULT_SETTINGS_STORAGE_KEY,
+  PRD_AI_REVIEW_DEFAULT_SETTINGS_STORAGE_KEY,
   defaultAiModelSettings,
   loadAiModelDefaultSettings,
+  loadPrdAiReviewDefaultSettings,
   saveAiModelDefaultSettings,
+  savePrdAiReviewDefaultSettings,
   type AiModelSettings,
 } from '../ai/modelSettings';
 
@@ -54,5 +57,25 @@ describe('AI model default settings', () => {
 
   it('falls back to built-in defaults when no saved default exists', () => {
     expect(loadAiModelDefaultSettings()).toEqual(defaultAiModelSettings);
+  });
+
+  it('keeps PRD AI review defaults independent from image generation defaults', () => {
+    saveAiModelDefaultSettings(configuredSettings);
+    const reviewSettings: AiModelSettings = {
+      visionStructure: {
+        ...defaultAiModelSettings.visionStructure,
+        apiUrl: 'https://review.test/chat',
+        apiKey: 'review-key',
+        model: 'review-model',
+      },
+      visionEmbedding: defaultAiModelSettings.visionEmbedding,
+    };
+
+    savePrdAiReviewDefaultSettings(reviewSettings);
+
+    expect(localStorage.getItem(AI_MODEL_DEFAULT_SETTINGS_STORAGE_KEY)).toContain('structure-key');
+    expect(localStorage.getItem(PRD_AI_REVIEW_DEFAULT_SETTINGS_STORAGE_KEY)).toContain('review-key');
+    expect(loadAiModelDefaultSettings()).toEqual(configuredSettings);
+    expect(loadPrdAiReviewDefaultSettings()).toEqual(reviewSettings);
   });
 });

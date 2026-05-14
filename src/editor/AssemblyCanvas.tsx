@@ -1,7 +1,8 @@
 import { Button, Empty, Space, Tag } from 'antd';
 import { EyeOff, Lock, Trash2, Unlock } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type WheelEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { getNextFrameZIndex, sortNodesByZIndex } from '../domain/canvas';
+import { computeCanvasSnap, type AlignmentGuide, type CanvasAssistRect, type SpacingHint } from '../domain/layoutAssist';
 import { visibleCanvasNodeIds } from '../domain/canvasViewport';
 import type { ComponentNode, NodeCanvasConfig, Page, PageFrame } from '../domain/types';
 import { imageInputFromClipboardData, imageInputFromDataTransfer, type ImageInput } from '../ai/imageInput';
@@ -20,10 +21,12 @@ import { SaveTemplateModal } from './templates/SaveTemplateModal';
 
 type ResizeHandle = 'n' | 'e' | 's' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
 type SelectionBox = { startX: number; startY: number; x: number; y: number; width: number; height: number };
+type LayoutAssistOverlay = { guides: AlignmentGuide[]; spacingHints: SpacingHint[] };
 
 const DEFAULT_FRAME_WIDTH = 1200;
 const DEFAULT_FRAME_HEIGHT = 760;
 const CANVAS_PADDING = 160;
+const FRAME_FIT_MARGIN = 48;
 const MIN_NODE_WIDTH = 80;
 const MIN_NODE_HEIGHT = 36;
 const MIN_FRAME_WIDTH = 320;
@@ -240,13 +243,19 @@ function CanvasNodeFrame({
   activeFrameId,
   context,
   onContextMenu,
+  pageFrame,
+  snapRects,
+  onLayoutAssistChange,
 }: {
   page: Page;
   node: ComponentNode;
   canvas: NodeCanvasConfig;
   activeFrameId: string;
   context: RendererContext;
-  onContextMenu: (point: { x: number; y: number }) => void;
+  onContextMenu: (point: { x: number; y: number; nodeIds: string[] }) => void;
+  pageFrame: PageFrame;
+  snapRects: CanvasAssistRect[];
+  onLayoutAssistChange: (overlay: LayoutAssistOverlay | undefined) => void;
 }) {
   const nodeRef = useRef<HTMLDivElement>(null);
   incrementMetric('nodeRender');
@@ -308,11 +317,18 @@ function CanvasNodeFrame({
     });
 
     const onMove = (moveEvent: globalThis.MouseEvent) => {
-      latestCanvas = {
+      const rawCanvas = {
         ...startCanvas,
         x: Math.round(startCanvas.x + moveEvent.clientX - startX),
         y: Math.round(startCanvas.y + moveEvent.clientY - startY),
       };
+      const snapResult = computeCanvasSnap({
+        moving: { id: node.id, x: rawCanvas.x, y: rawCanvas.y, width: rawCanvas.width, height: rawCanvas.height },
+        others: snapRects.filter((item) => !dragSelection.includes(item.id)),
+        frame: { id: pageFrame.id, x: 0, y: 0, width: pageFrame.width, height: pageFrame.height },
+      });
+      latestCanvas = { ...rawCanvas, x: snapResult.rect.x, y: snapResult.rect.y };
+      onLayoutAssistChange({ guides: snapResult.guides, spacingHints: snapResult.spacingHints });
       if (frameId !== undefined) return;
       frameId = window.requestAnimationFrame(() => {
         frameId = undefined;
@@ -324,6 +340,7 @@ function CanvasNodeFrame({
       window.removeEventListener('mousemove', onMove);
       if (frameId !== undefined) window.cancelAnimationFrame(frameId);
       endInteraction();
+      onLayoutAssistChange(undefined);
       if (dragSelection.length > 1 && dragSelection.includes(node.id)) {
         useProjectStore.getState().selectNodes(dragSelection);
         useProjectStore.getState().moveSelectedCanvasBy(node.id, latestCanvas.x - startCanvas.x, latestCanvas.y - startCanvas.y);
@@ -466,8 +483,9 @@ function CanvasNodeFrame({
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (!selectedNodeIds.includes(node.id)) selectNodes(groupedNodeIds(page, node));
-        onContextMenu({ x: canvas.x + 12, y: canvas.y + 12 });
+        const nodeIds = selectedNodeIds.includes(node.id) ? selectedNodeIds : groupedNodeIds(page, node);
+        if (!selectedNodeIds.includes(node.id)) selectNodes(nodeIds);
+        onContextMenu({ x: canvas.x + 12, y: canvas.y + 12, nodeIds });
       }}
     >
       {selected ? (
@@ -527,9 +545,11 @@ function CanvasNodeFrame({
 
 export function AssemblyCanvas() {
   incrementMetric('canvasRender');
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | undefined>();
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeIds: string[] } | undefined>();
+  const [saveTemplateNodeIds, setSaveTemplateNodeIds] = useState<string[] | undefined>();
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [selectionBox, setSelectionBox] = useState<SelectionBox | undefined>();
+  const [layoutAssistOverlay, setLayoutAssistOverlay] = useState<LayoutAssistOverlay | undefined>();
   const [frameResizePreview, setFrameResizePreview] = useState<PageFrame | undefined>();
   const [viewportBox, setViewportBox] = useState({ scrollLeft: 0, scrollTop: 0, width: 0, height: 0 });
   const [viewportPanning, setViewportPanning] = useState(false);
@@ -556,6 +576,9 @@ export function AssemblyCanvas() {
   const sendSelectedToBack = useProjectStore((state) => state.sendSelectedToBack);
   const moveSelectedForward = useProjectStore((state) => state.moveSelectedForward);
   const moveSelectedBackward = useProjectStore((state) => state.moveSelectedBackward);
+  const alignSelectedNodes = useProjectStore((state) => state.alignSelectedNodes);
+  const distributeSelectedNodes = useProjectStore((state) => state.distributeSelectedNodes);
+  const matchSelectedNodesSize = useProjectStore((state) => state.matchSelectedNodesSize);
   const groupSelectedNodes = useProjectStore((state) => state.groupSelectedNodes);
   const ungroupSelectedNode = useProjectStore((state) => state.ungroupSelectedNode);
   const deleteSelectedNode = useProjectStore((state) => state.deleteSelectedNode);
@@ -564,6 +587,7 @@ export function AssemblyCanvas() {
   const scrollRef = useRef<HTMLElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const suppressNextFrameClick = useRef(false);
+  const fittedFrameKey = useRef('');
   const pageFrame = page ? (page.frames?.find((frame) => frame.id === currentFrameId) ?? page.frames?.[0] ?? defaultFrameForPage(page)) : undefined;
   const context = useRendererContext(page, project);
   const selectedNode = selectedNodeId && page ? page.nodes[selectedNodeId] : undefined;
@@ -618,6 +642,18 @@ export function AssemblyCanvas() {
     [activeInteractionNodeId, frameEntries, selectedNodeIds, viewport],
   );
 
+  const snapRects = useMemo(
+    () =>
+      frameEntries.map(({ node, canvas }) => ({
+        id: node.id,
+        x: canvas.x,
+        y: canvas.y,
+        width: canvas.width,
+        height: canvas.height,
+      })),
+    [frameEntries],
+  );
+
   useEffect(() => {
     setVisibleNodeCount(visibleNodeIds.size);
   }, [setVisibleNodeCount, visibleNodeIds.size]);
@@ -664,6 +700,28 @@ export function AssemblyCanvas() {
     updateViewportBox(scrollElement);
   }, [pageFrame, updateViewportBox, zoom]);
 
+  const fitActiveFrameToViewport = useCallback(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement || !pageFrame) return;
+    const availableWidth = Math.max(1, scrollElement.clientWidth - FRAME_FIT_MARGIN * 2);
+    const availableHeight = Math.max(1, scrollElement.clientHeight - FRAME_FIT_MARGIN * 2);
+    const nextZoom = Math.min(1, Math.max(0.5, Number(Math.min(availableWidth / pageFrame.width, availableHeight / pageFrame.height).toFixed(2))));
+    setZoom(nextZoom);
+    scrollElement.scrollLeft = Math.max(0, Math.round((CANVAS_PADDING + pageFrame.x + pageFrame.width / 2) * nextZoom - scrollElement.clientWidth / 2));
+    scrollElement.scrollTop = Math.max(0, Math.round((CANVAS_PADDING + pageFrame.y + pageFrame.height / 2) * nextZoom - scrollElement.clientHeight / 2));
+    updateViewportBox(scrollElement);
+  }, [pageFrame, setZoom, updateViewportBox]);
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement || !pageFrame) return;
+    updateViewportBox(scrollElement);
+    const frameKey = `${currentPageId}:${pageFrame.id}:${scrollElement.clientWidth}:${scrollElement.clientHeight}:${pageFrame.width}:${pageFrame.height}`;
+    if (scrollElement.clientWidth <= 0 || scrollElement.clientHeight <= 0 || fittedFrameKey.current === frameKey) return;
+    fittedFrameKey.current = frameKey;
+    fitActiveFrameToViewport();
+  }, [currentPageId, fitActiveFrameToViewport, pageFrame, updateViewportBox]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -686,8 +744,19 @@ export function AssemblyCanvas() {
       if (event.key === 'Escape') {
         event.preventDefault();
         setContextMenu(undefined);
+        setLayoutAssistOverlay(undefined);
         selectNodes([]);
         return;
+      }
+      if (event.key.startsWith('Arrow') && selectedNodeIds.length > 0) {
+        const step = event.shiftKey ? 10 : 1;
+        const deltaX = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+        const deltaY = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+        if (deltaX !== 0 || deltaY !== 0) {
+          event.preventDefault();
+          useProjectStore.getState().moveSelectedCanvasBy(selectedNodeIds[0]!, deltaX, deltaY);
+          return;
+        }
       }
       const command = event.ctrlKey || event.metaKey;
       if (!command) return;
@@ -743,6 +812,7 @@ export function AssemblyCanvas() {
     pasteClipboard,
     redo,
     selectNodes,
+    selectedNodeIds,
     sendSelectedToBack,
     setSpacePanActive,
     undo,
@@ -767,17 +837,26 @@ export function AssemblyCanvas() {
     return () => window.removeEventListener('paste', handlePaste);
   }, [page, pageFrame, pasteClipboard, placeImageInput]);
 
-  if (!page || !pageFrame) return null;
-
-  const visualPageFrame = frameResizePreview ?? pageFrame;
-
-  function handleWheel(event: WheelEvent<HTMLElement>) {
+  const handleViewportWheel = useCallback((event: globalThis.WheelEvent) => {
     if (!event.ctrlKey && !event.metaKey) return;
     if (isEditableShortcutTarget(event.target)) return;
     event.preventDefault();
+    event.stopPropagation();
     const direction = event.deltaY > 0 ? -1 : 1;
-    setZoom(Math.min(1.8, Math.max(0.5, Number((zoom + direction * 0.08).toFixed(2)))));
-  }
+    const currentZoom = useCanvasViewportStore.getState().zoom;
+    setZoom(Math.min(1.8, Math.max(0.5, Number((currentZoom + direction * 0.08).toFixed(2)))));
+  }, [setZoom]);
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) return;
+    scrollElement.addEventListener('wheel', handleViewportWheel, { passive: false });
+    return () => scrollElement.removeEventListener('wheel', handleViewportWheel);
+  }, [handleViewportWheel]);
+
+  if (!page || !pageFrame) return null;
+
+  const visualPageFrame = frameResizePreview ?? pageFrame;
 
   function startViewportPan(event: ReactMouseEvent<HTMLElement>) {
     if (isEditableShortcutTarget(event.target)) return;
@@ -996,7 +1075,6 @@ export function AssemblyCanvas() {
         selectNode(page.rootNodeId);
       }}
       onMouseDown={startViewportPan}
-      onWheel={handleWheel}
       onScroll={(event) => {
         updateViewportBox(event.currentTarget);
       }}
@@ -1053,6 +1131,30 @@ export function AssemblyCanvas() {
               style={{ left: selectionBox.x, top: selectionBox.y, width: selectionBox.width, height: selectionBox.height }}
             />
           ) : null}
+          {layoutAssistOverlay ? (
+            <div className="canvas-layout-assist-overlay" data-testid="canvas-layout-assist-overlay">
+              {layoutAssistOverlay.guides.map((guide, index) => (
+                <div
+                  className={`canvas-alignment-guide ${guide.axis === 'x' ? 'vertical' : 'horizontal'}`}
+                  key={`${guide.axis}-${guide.position}-${index}`}
+                  style={
+                    guide.axis === 'x'
+                      ? { left: guide.position, top: guide.from, height: guide.to - guide.from }
+                      : { top: guide.position, left: guide.from, width: guide.to - guide.from }
+                  }
+                />
+              ))}
+              {layoutAssistOverlay.spacingHints.map((hint, index) => (
+                <div
+                  className={`canvas-spacing-hint ${hint.axis === 'x' ? 'horizontal' : 'vertical'}`}
+                  key={`${hint.axis}-${hint.start}-${hint.end}-${index}`}
+                  style={hint.axis === 'x' ? { left: hint.start, top: 12 + index * 16, width: hint.end - hint.start } : { top: hint.start, left: 12 + index * 16, height: hint.end - hint.start }}
+                >
+                  <span>{hint.gap}px</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {frameEntries.length === 0 ? (
             <div className="canvas-empty-state">
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="从左侧组件库拖入组件" />
@@ -1060,7 +1162,18 @@ export function AssemblyCanvas() {
           ) : (
             frameEntries.map(({ node, canvas }) => (
               visibleNodeIds.has(node.id) ? (
-                <CanvasNodeFrame key={node.id} page={page} node={node} canvas={canvas} activeFrameId={pageFrame.id} context={context} onContextMenu={setContextMenu} />
+                <CanvasNodeFrame
+                  key={node.id}
+                  page={page}
+                  node={node}
+                  canvas={canvas}
+                  activeFrameId={pageFrame.id}
+                  context={context}
+                  onContextMenu={setContextMenu}
+                  pageFrame={pageFrame}
+                  snapRects={snapRects}
+                  onLayoutAssistChange={setLayoutAssistOverlay}
+                />
               ) : null
           ))
           )}
@@ -1079,14 +1192,28 @@ export function AssemblyCanvas() {
               <Button size="small" aria-label="context-move-forward" onClick={() => runContextAction(moveSelectedForward)}>上移一层</Button>
               <Button size="small" aria-label="context-move-backward" onClick={() => runContextAction(moveSelectedBackward)}>下移一层</Button>
               <Button size="small" aria-label="context-send-back" onClick={() => runContextAction(sendSelectedToBack)}>置于底层</Button>
+              <Button size="small" aria-label="context-align-left" onClick={() => runContextAction(() => alignSelectedNodes('left'))}>左对齐</Button>
+              <Button size="small" aria-label="context-align-right" onClick={() => runContextAction(() => alignSelectedNodes('right'))}>右对齐</Button>
+              <Button size="small" aria-label="context-align-top" onClick={() => runContextAction(() => alignSelectedNodes('top'))}>顶对齐</Button>
+              <Button size="small" aria-label="context-distribute-horizontal" onClick={() => runContextAction(() => distributeSelectedNodes('horizontal'))}>水平等距</Button>
+              <Button size="small" aria-label="context-distribute-vertical" onClick={() => runContextAction(() => distributeSelectedNodes('vertical'))}>垂直等距</Button>
+              <Button size="small" aria-label="context-match-width" onClick={() => runContextAction(() => matchSelectedNodesSize('width'))}>等宽</Button>
+              <Button size="small" aria-label="context-match-height" onClick={() => runContextAction(() => matchSelectedNodesSize('height'))}>等高</Button>
               <Button size="small" aria-label="context-group" onClick={() => runContextAction(groupSelectedNodes)}>组合</Button>
               <Button size="small" aria-label="context-ungroup" onClick={() => runContextAction(ungroupSelectedNode)}>取消组合</Button>
               <Button size="small" aria-label="context-save-default" onClick={() => runContextAction(saveSelectedAsDefault)}>保存为默认</Button>
-              <Button size="small" aria-label="context-save-template" onClick={() => { setSaveTemplateOpen(true); closeContextMenu(); }}>保存为模板</Button>
+              <Button size="small" aria-label="context-save-template" onClick={() => { setSaveTemplateNodeIds(contextMenu.nodeIds); setSaveTemplateOpen(true); closeContextMenu(); }}>保存为模板</Button>
               <Button size="small" aria-label="context-delete" danger onClick={() => runContextAction(deleteSelectedNode)}>删除</Button>
             </div>
           ) : null}
-          <SaveTemplateModal open={saveTemplateOpen} onClose={() => setSaveTemplateOpen(false)} />
+          <SaveTemplateModal
+            open={saveTemplateOpen}
+            onClose={() => {
+              setSaveTemplateOpen(false);
+              setSaveTemplateNodeIds(undefined);
+            }}
+            {...(saveTemplateNodeIds ? { selectedNodeIdsOverride: saveTemplateNodeIds } : {})}
+          />
         </div>
         </div>
       </div>

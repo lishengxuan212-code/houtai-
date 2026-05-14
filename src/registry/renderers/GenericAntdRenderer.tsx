@@ -79,11 +79,44 @@ function badgeProps(value: unknown) {
 
 const sampleItems = ['第一项', '第二项', '第三项'];
 
-function collectionItems(value: JsonValue | undefined) {
+type RendererCollectionItem = {
+  key: string;
+  label: string;
+  value?: string;
+  title?: string;
+  children?: unknown;
+};
+
+type RendererTreeItem = {
+  value: string;
+  title: string;
+  label: string;
+  children?: RendererTreeItem[];
+};
+
+function collectionItems(value: JsonValue | undefined): RendererCollectionItem[] {
   return asArray<string | { key?: string; label?: string; title?: string; value?: string; children?: unknown }>(value, []).map((item, index) => {
     if (typeof item === 'string') return { key: item, label: item };
     const label = item.label ?? item.title ?? item.value ?? `Item ${index + 1}`;
-    return { key: item.key ?? item.value ?? label, label, title: label, children: item.children };
+    return {
+      key: item.key ?? item.value ?? label,
+      label,
+      title: label,
+      ...(item.value !== undefined ? { value: item.value } : {}),
+      ...(item.children !== undefined ? { children: item.children } : {}),
+    };
+  });
+}
+
+function treeItems(value: JsonValue | undefined): RendererTreeItem[] {
+  return collectionItems(value).map((item) => {
+    const children = Array.isArray(item.children) ? treeItems(item.children as JsonValue) : undefined;
+    return {
+      value: String(item.value ?? item.key),
+      title: item.label,
+      label: item.label,
+      ...(children ? { children } : {}),
+    };
   });
 }
 
@@ -325,7 +358,7 @@ export function GenericAntdRenderer({ node, children, context }: Props) {
     case 'Anchor':
       return <Anchor items={[{ key: 'section', href: '#section', title }]} />;
     case 'Breadcrumb':
-      return <Breadcrumb items={[{ title: '首页' }, { title }]} />;
+      return <Breadcrumb items={(collectionItems(node.content?.items ?? node.props.items).length ? collectionItems(node.content?.items ?? node.props.items) : [{ key: 'home', label: '首页' }, { key: 'current', label: title }]).map((item) => ({ title: item.label }))} />;
     case 'Dropdown':
       return <Dropdown menu={{ items: collectionItems(node.content?.menuItems ?? node.props.menuItems) }}><a>{title}</a></Dropdown>;
     case 'Menu':
@@ -337,9 +370,12 @@ export function GenericAntdRenderer({ node, children, context }: Props) {
     case 'AutoComplete':
       return <Mentions placeholder="请输入" />;
     case 'Cascader':
-      return <Cascader placeholder="请选择" options={[{ value: 'a', label: '选项', children: [{ value: 'b', label: '子项' }] }]} />;
+      return <Cascader placeholder={asString(node.props.placeholder, '请选择')} options={treeItems(node.content?.options ?? node.props.options)} />;
     case 'Checkbox':
-      return <Checkbox checked>{title}</Checkbox>;
+      {
+        const options = collectionItems(node.content?.options ?? node.props.options);
+        return options.length ? <Checkbox.Group value={options.slice(0, 1).map((item) => item.key)} options={options.map((item) => ({ value: item.key, label: item.label }))} /> : <Checkbox checked={asBoolean(node.props.checked, true)}>{asString(node.props.label, title)}</Checkbox>;
+      }
     case 'ColorPicker':
       return <ColorPicker defaultValue="#1677ff" />;
     case 'DatePicker':
@@ -360,7 +396,10 @@ export function GenericAntdRenderer({ node, children, context }: Props) {
     case 'Mentions':
       return <Mentions placeholder="@用户" />;
     case 'Radio':
-      return <Radio.Group value="a" options={[{ value: 'a', label: title }, { value: 'b', label: '选项' }]} />;
+      {
+        const options = collectionItems(node.content?.options ?? node.props.options);
+        return <Radio.Group value={asString(node.props.value) || options[0]?.key} options={(options.length ? options : [{ key: 'a', label: title }, { key: 'b', label: '选项' }]).map((item) => ({ value: item.key, label: item.label }))} />;
+      }
     case 'Rate':
       return <Rate defaultValue={3} />;
     case 'Slider':
@@ -372,7 +411,10 @@ export function GenericAntdRenderer({ node, children, context }: Props) {
     case 'Transfer':
       return <Transfer dataSource={sampleItems.map((item) => ({ key: item, title: item }))} targetKeys={['第二项']} render={(item) => item.title ?? ''} />;
     case 'TreeSelect':
-      return <TreeSelect value="a" treeData={[{ value: 'a', title }]} />;
+      {
+        const treeData = treeItems(node.content?.treeData ?? node.props.treeData ?? node.content?.options ?? node.props.options);
+        return <TreeSelect placeholder={asString(node.props.placeholder, '请选择')} value={asString(node.props.value) || treeData[0]?.value} treeData={treeData.length ? treeData : [{ value: 'a', title, label: title }]} />;
+      }
     case 'Upload':
       return <Upload><Tag color="blue">上传文件</Tag></Upload>;
     case 'Avatar':

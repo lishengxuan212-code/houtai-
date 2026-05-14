@@ -1,46 +1,40 @@
-import { Button, Form, Input, InputNumber, Modal, Radio, Segmented } from 'antd';
-import type { BusinessType } from '../../domain/types';
+import { Button, Form, InputNumber, Modal, Segmented, Select } from 'antd';
 import { useProjectStore } from '../../store/projectStore';
+import { listUserTemplates } from '../../templates/templateStorage';
 import { WORKBENCH_MODAL_WIDTH } from '../workbench/modalConstants';
 
-const businessTypes: { label: string; value: BusinessType }[] = [
-  { label: '空白后台', value: 'blank' },
-  { label: '电商后台', value: 'ecommerce' },
-  { label: 'CRM 后台', value: 'crm' },
-  { label: '审批后台', value: 'approval' },
-  { label: '内容管理后台', value: 'cms' },
-  { label: '用户权限后台', value: 'user_permission' },
-  { label: '数据看板后台', value: 'dashboard' },
-];
-
 type NewProjectForm = {
-  name: string;
-  businessType: BusinessType;
   template: 'blank' | 'builtin';
   canvasWidth: number;
   canvasHeight: number;
+  templateSourceId?: string;
 };
 
 export function NewProjectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const createProject = useProjectStore((state) => state.createProject);
   const [form] = Form.useForm<NewProjectForm>();
+  const templates = listUserTemplates();
+  const selectedTemplateKind = Form.useWatch('template', form);
+
   return (
     <Modal title="新建项目" open={open} onCancel={onClose} footer={null} width={WORKBENCH_MODAL_WIDTH}>
       <Form
         form={form}
         layout="vertical"
-        initialValues={{ name: '新后台项目', businessType: 'blank', template: 'blank', canvasWidth: 1200, canvasHeight: 760 }}
+        initialValues={{ template: 'blank', canvasWidth: 1200, canvasHeight: 760 }}
         onFinish={(values) => {
-          createProject(values);
+          const selectedTemplate = values.templateSourceId ? templates.find((template) => template.id === values.templateSourceId) : undefined;
+          createProject({
+            name: selectedTemplate ? `${selectedTemplate.name} 项目` : '新后台项目',
+            businessType: 'blank',
+            template: values.template,
+            canvasWidth: values.canvasWidth,
+            canvasHeight: values.canvasHeight,
+            ...(values.templateSourceId ? { templateSourceId: values.templateSourceId } : {}),
+          });
           onClose();
         }}
       >
-        <Form.Item label="项目名称" name="name" rules={[{ required: true, message: '请输入项目名称' }]}>
-          <Input placeholder="请输入项目名称" />
-        </Form.Item>
-        <Form.Item label="项目类型" name="businessType">
-          <Radio.Group options={businessTypes} />
-        </Form.Item>
         <div className="project-canvas-size-row">
           <Form.Item label="画布宽度" name="canvasWidth" rules={[{ required: true, message: '请输入画布宽度' }]}>
             <InputNumber min={320} max={3840} step={10} addonAfter="px" />
@@ -50,8 +44,21 @@ export function NewProjectModal({ open, onClose }: { open: boolean; onClose: () 
           </Form.Item>
         </div>
         <Form.Item label="创建方式" name="template">
-          <Segmented options={[{ label: '从空白创建', value: 'blank' }, { label: '从内置模板创建', value: 'builtin' }]} />
+          <Segmented
+            options={[
+              { label: '从空白创建', value: 'blank' },
+              { label: '从内置模板创建', value: 'builtin', disabled: templates.length === 0 },
+            ]}
+            onChange={(value) => {
+              if (value === 'builtin' && !form.getFieldValue('templateSourceId')) form.setFieldValue('templateSourceId', templates[0]?.id);
+            }}
+          />
         </Form.Item>
+        {selectedTemplateKind === 'builtin' ? (
+          <Form.Item label="选择模板" name="templateSourceId" rules={[{ required: true, message: '请选择模板' }]}>
+            <Select options={templates.map((template) => ({ label: template.name, value: template.id }))} />
+          </Form.Item>
+        ) : null}
         <div className="modal-actions">
           <Button onClick={onClose}>取消</Button>
           <Button type="primary" htmlType="submit">创建项目</Button>
